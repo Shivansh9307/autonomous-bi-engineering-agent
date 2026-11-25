@@ -1,0 +1,156 @@
+[
+    {
+        "ID": "ERR_AVOID_FLOAT_COLUMNS",
+        "Name": "Avoid floating point data types",
+        "Category": "Metadata",
+        "Description": "Floating point (Double) data types can cause precision issues. Use Decimal for financial columns.",
+        "Severity": 3,
+        "Scope": "DataColumn, CalculatedColumn, CalculatedTableColumn",
+        "Expression": "DataType = \"Double\"",
+        "FixExpression": "DataType = DataType.Decimal",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_MEASURE_NO_FORMAT_STRING",
+        "Name": "Visible measure missing format string",
+        "Category": "Formatting",
+        "Description": "Every visible measure must define an explicit FormatString.",
+        "Severity": 3,
+        "Scope": "Measure",
+        "Expression": "IsVisible and string.IsNullOrWhitespace(FormatString)",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_AVOID_BIDIR_RELATIONSHIPS",
+        "Name": "Avoid bi-directional relationships",
+        "Category": "Performance",
+        "Description": "Bi-directional cross-filtering causes ambiguity and degrades query performance; keep pure 1:* single-direction star schemas.",
+        "Severity": 3,
+        "Scope": "Relationship",
+        "Expression": "CrossFilteringBehavior = CrossFilteringBehavior.BothDirections",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_HIDE_FK_COLUMNS",
+        "Name": "Hide foreign key columns",
+        "Category": "Model Layout",
+        "Description": "Surrogate/foreign key columns on the many side of relationships must be hidden from report authors.",
+        "Severity": 3,
+        "Scope": "DataColumn, CalculatedColumn, CalculatedTableColumn",
+        "Expression": "IsVisible and Model.Relationships.Any(FromColumn = outerIt)",
+        "FixExpression": "IsHidden = true",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_NON_ADDITIVE_SUMMARIZE_NONE",
+        "Name": "Disable default summarization on numeric columns",
+        "Category": "Metadata",
+        "Description": "Numeric columns should have SummarizeBy set to None to prevent implicit aggregation.",
+        "Severity": 3,
+        "Scope": "DataColumn, CalculatedColumn, CalculatedTableColumn",
+        "Expression": "IsVisible and SummarizeBy <> \"None\" and (DataType = \"Double\" or DataType = \"Decimal\" or DataType = \"Int64\")",
+        "FixExpression": "SummarizeBy = AggregateFunction.None",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_DAX_DIVISION_OPERATOR",
+        "Name": "Avoid division operator (use DIVIDE)",
+        "Category": "DAX Expressions",
+        "Description": "Use DIVIDE() instead of the / operator to handle division by zero safely.",
+        "Severity": 3,
+        "Scope": "Measure, CalculatedColumn, CalculatedTable",
+        "Expression": "Tokenize().Any(Type = DIV and Next.Type <> INTEGER_LITERAL and Next.Type <> REAL_LITERAL)",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_RLS_EMPTY_FILTER",
+        "Name": "RLS table permission has empty filter expression",
+        "Category": "Governance",
+        "Description": "Security role table permissions must never leave FilterExpression empty (fail-closed RLS policy).",
+        "Severity": 3,
+        "Scope": "TablePermission",
+        "Expression": "string.IsNullOrWhitespace(FilterExpression)",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_DAX_COLUMNS_FULLY_QUALIFIED",
+        "Name": "Column references must be fully qualified",
+        "Category": "DAX Expressions",
+        "Description": "Always reference columns as 'Table'[Column] so columns are clearly distinguished from measures.",
+        "Severity": 3,
+        "Scope": "Measure, CalculatedColumn, CalculatedTable, KPI",
+        "Expression": "DependsOn.Any(Key.ObjectType = \"Column\" and Value.Any(not FullyQualified))",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "ERR_DAX_MEASURES_UNQUALIFIED",
+        "Name": "Measure references must be unqualified",
+        "Category": "DAX Expressions",
+        "Description": "Reference measures as bare [Measure] without a table prefix.",
+        "Severity": 3,
+        "Scope": "Measure, CalculatedColumn, CalculatedTable, KPI",
+        "Expression": "DependsOn.Any(Key.ObjectType = \"Measure\" and Value.Any(FullyQualified))",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "META_MEASURE_NO_DESCRIPTION",
+        "Name": "Visible measure missing description",
+        "Category": "Metadata",
+        "Description": "Every visible measure should document its business intent in Description.",
+        "Severity": 2,
+        "Scope": "Measure",
+        "Expression": "IsVisible and string.IsNullOrWhitespace(Description)",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "META_MEASURE_DESCRIPTION_TOO_LONG",
+        "Name": "Measure description exceeds 200 characters",
+        "Category": "Metadata",
+        "Description": "Keep measure descriptions concise (<= 200 characters) per Enterprise BI standards.",
+        "Severity": 2,
+        "Scope": "Measure",
+        "Expression": "not string.IsNullOrWhitespace(Description) and Description.Length > 200",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "META_MEASURE_NO_DISPLAY_FOLDER",
+        "Name": "Visible measure missing display folder",
+        "Category": "Model Layout",
+        "Description": "Organize visible measures into DisplayFolder groups.",
+        "Severity": 2,
+        "Scope": "Measure",
+        "Expression": "IsVisible and string.IsNullOrWhitespace(DisplayFolder)",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "PERF_DISABLE_MDX_ON_HIDDEN_COLUMNS",
+        "Name": "Disable IsAvailableInMDX on hidden non-hierarchy columns",
+        "Category": "Performance",
+        "Description": "Hidden columns not used in hierarchies, sort-by, or variations should disable IsAvailableInMDX.",
+        "Severity": 2,
+        "Scope": "DataColumn",
+        "Expression": "not IsVisible and IsAvailableInMDX and not UsedInHierarchies.Any() and not UsedInVariations.Any() and not UsedInSortBy.Any()",
+        "FixExpression": "IsAvailableInMDX = false",
+        "CompatibilityLevel": 1400
+    },
+    {
+        "ID": "DAX_AVOID_IFERROR",
+        "Name": "Avoid IFERROR in DAX expressions",
+        "Category": "DAX Expressions",
+        "Description": "IFERROR can mask upstream model errors and inhibit storage engine optimizations.",
+        "Severity": 2,
+        "Scope": "Measure, CalculatedColumn",
+        "Expression": "Expression.IndexOf(\"IFERROR\", StringComparison.OrdinalIgnoreCase) >= 0",
+        "CompatibilityLevel": 1200
+    },
+    {
+        "ID": "DAX_AVOID_FILTER_ALL",
+        "Name": "Avoid FILTER(ALL(...)) pattern",
+        "Category": "DAX Expressions",
+        "Description": "Avoid FILTER(ALL(...)) inside iterators or CALCULATE; prefer direct boolean column filters or KEEPFILTERS.",
+        "Severity": 2,
+        "Scope": "Measure, CalculatedColumn",
+        "Expression": "RegEx.IsMatch(Expression, \"FILTER\\\\s*\\\\(\\\\s*ALL\\\\s*\\\\(\")",
+        "CompatibilityLevel": 1200
+    }
+]
