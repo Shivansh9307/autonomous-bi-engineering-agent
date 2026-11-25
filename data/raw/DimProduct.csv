@@ -1,0 +1,51 @@
+ProductKey,ProductSKU,ProductName,Category,Subcategory,UnitPrice,UnitCost
+1,SKU-0001,Edge Gateways Model 01,Cloud Hardware,Edge Gateways,689.99,372.59
+2,SKU-0002,Smart POS Model 02,Cloud Hardware,Smart POS,794.99,461.09
+3,SKU-0003,Analytics Suites Model 03,Enterprise Software,Analytics Suites,263.99,145.19
+4,SKU-0004,Security Licenses Model 04,Enterprise Software,Security Licenses,139.99,92.39
+5,SKU-0005,Wearables Model 05,Connected Devices,Wearables,593.99,320.75
+6,SKU-0006,Tablets Model 06,Connected Devices,Tablets,467.99,248.03
+7,SKU-0007,Docks & Cables Model 07,Accessories,Docks & Cables,130.99,73.35
+8,SKU-0008,Audio Peripherals Model 08,Accessories,Audio Peripherals,552.99,353.91
+9,SKU-0009,Support Plans Model 09,Managed Services,Support Plans,609.99,341.59
+10,SKU-0010,Onboarding Packs Model 10,Managed Services,Onboarding Packs,700.99,462.65
+11,SKU-0011,Edge Gateways Model 11,Cloud Hardware,Edge Gateways,464.99,260.39
+12,SKU-0012,Smart POS Model 12,Cloud Hardware,Smart POS,638.99,370.61
+13,SKU-0013,Analytics Suites Model 13,Enterprise Software,Analytics Suites,41.99,28.13
+14,SKU-0014,Security Licenses Model 14,Enterprise Software,Security Licenses,198.99,131.33
+15,SKU-0015,Wearables Model 15,Connected Devices,Wearables,383.99,222.71
+16,SKU-0016,Tablets Model 16,Connected Devices,Tablets,255.99,181.75
+17,SKU-0017,Docks & Cables Model 17,Accessories,Docks & Cables,379.99,205.19
+18,SKU-0018,Audio Peripherals Model 18,Accessories,Audio Peripherals,424.99,229.49
+19,SKU-0019,Support Plans Model 19,Managed Services,Support Plans,387.99,248.31
+20,SKU-0020,Onboarding Packs Model 20,Managed Services,Onboarding Packs,79.99,53.59
+21,SKU-0021,Edge Gateways Model 21,Cloud Hardware,Edge Gateways,584.99,315.89
+22,SKU-0022,Smart POS Model 22,Cloud Hardware,Smart POS,422.99,228.41
+23,SKU-0023,Analytics Suites Model 23,Enterprise Software,Analytics Suites,335.99,231.83
+24,SKU-0024,Security Licenses Model 24,Enterprise Software,Security Licenses,668.99,468.29
+25,SKU-0025,Wearables Model 25,Connected Devices,Wearables,405.99,259.83
+26,SKU-0026,Tablets Model 26,Connected Devices,Tablets,756.99,401.20
+27,SKU-0027,Docks & Cables Model 27,Accessories,Docks & Cables,712.99,406.40
+28,SKU-0028,Audio Peripherals Model 28,Accessories,Audio Peripherals,331.99,239.03
+29,SKU-0029,Support Plans Model 29,Managed Services,Support Plans,273.99,189.05
+30,SKU-0030,Onboarding Packs Model 30,Managed Services,Onboarding Packs,424.99,246.49
+31,SKU-0031,Edge Gateways Model 31,Cloud Hardware,Edge Gateways,685.99,473.33
+32,SKU-0032,Smart POS Model 32,Cloud Hardware,Smart POS,201.99,119.17
+33,SKU-0033,Analytics Suites Model 33,Enterprise Software,Analytics Suites,249.99,162.49
+34,SKU-0034,Security Licenses Model 34,Enterprise Software,Security Licenses,753.99,535.33
+35,SKU-0035,Wearables Model 35,Connected Devices,Wearables,698.99,370.46
+36,SKU-0036,Tablets Model 36,Connected Devices,Tablets,685.99,377.29
+37,SKU-0037,Docks & Cables Model 37,Accessories,Docks & Cables,781.99,445.73
+38,SKU-0038,Audio Peripherals Model 38,Accessories,Audio Peripherals,508.99,305.39
+39,SKU-0039,Support Plans Model 39,Managed Services,Support Plans,690.99,456.05
+40,SKU-0040,Onboarding Packs Model 40,Managed Services,Onboarding Packs,259.99,171.59
+41,SKU-0041,Edge Gateways Model 41,Cloud Hardware,Edge Gateways,821.99,558.95
+42,SKU-0042,Smart POS Model 42,Cloud Hardware,Smart POS,269.99,183.59
+43,SKU-0043,Analytics Suites Model 43,Enterprise Software,Analytics Suites,358.99,215.39
+44,SKU-0044,Security Licenses Model 44,Enterprise Software,Security Licenses,102.99,57.67
+45,SKU-0045,Wearables Model 45,Connected Devices,Wearables,615.99,431.19
+46,SKU-0046,Tablets Model 46,Connected Devices,Tablets,357.99,200.47
+47,SKU-0047,Docks & Cables Model 47,Accessories,Docks & Cables,546.99,328.19
+48,SKU-0048,Audio Peripherals Model 48,Accessories,Audio Peripherals,693.99,423.33
+49,SKU-0049,Support Plans Model 49,Managed Services,Support Plans,306.99,168.84
+50,SKU-0050,Onboarding Packs Model 50,Managed Services,Onboarding Packs,797.99,502.73

@@ -1,0 +1,141 @@
+{
+  "seed": 42,
+  "dataset_sha256": {
+    "DimDate.csv": "c88a65cb1af6323da46f4e71d043ea57faaea34d49e2bb257497fbc16ec8ce78",
+    "DimProduct.csv": "4f34ab8d61c4b7c3d28b710a77d8bfed7a1a0e7b589394c49b3f577f988284c5",
+    "DimStore.csv": "b2b321882872b2acb64cb70ca0dd041ab6dd0430e9c366e25e65d4412e12e4b7",
+    "DimCustomer.csv": "e7fe0e7c656539e42b4fc02d58bc1c2c8aa85ec252d443294b2252fda6a518f1",
+    "DimSalesRep.csv": "076bd5f16f3c7c3ee5df51739a9cccd2aad3f7a5d8b40e67e95e61a5b6fb15f9",
+    "FactSales.csv": "47fbaa31b7cc154b33d0b70f28f4c1bd3a3bcde3ca7f57a5ca8f9187e5cb3007",
+    "FactBudget.csv": "ac4f06090737ddfdf33b0469748e63582be501b38d3cfb76e7b64bc013ccae75"
+  },
+  "overall": {
+    "sales_row_count": 25000,
+    "budget_row_count": 648,
+    "distinct_orders": 12500,
+    "total_revenue": 48744150.82,
+    "total_cogs": 32269534.96,
+    "gross_margin": 16474615.86,
+    "gross_margin_pct": 0.338,
+    "total_units": 113110,
+    "total_discount": 4373690.08,
+    "discount_rate_pct": 0.0823,
+    "average_order_value": 3899.53,
+    "total_budget": 49390714.25,
+    "budget_variance": -646563.43,
+    "budget_variance_pct": -0.0131
+  },
+  "by_year": {
+    "2024": {
+      "total_revenue": 13867030.09,
+      "gross_margin": 4694078.8,
+      "total_budget": 14130483.83
+    },
+    "2025": {
+      "total_revenue": 16458458.29,
+      "gross_margin": 5548950.57,
+      "total_budget": 16591868.28,
+      "revenue_py": 13867030.09,
+      "revenue_yoy": 2591428.2,
+      "revenue_yoy_pct": 0.1869
+    },
+    "2026": {
+      "total_revenue": 18418662.44,
+      "gross_margin": 6231586.49,
+      "total_budget": 18668362.14,
+      "revenue_py": 16458458.29,
+      "revenue_yoy": 1960204.15,
+      "revenue_yoy_pct": 0.1191
+    }
+  },
+  "by_region": {
+    "NA": {
+      "row_count": 8349,
+      "total_revenue": 16181846.64,
+      "gross_margin": 5474168.77,
+      "gross_margin_pct": 0.3383,
+      "total_budget": 16397838.43
+    },
+    "EMEA": {
+      "row_count": 8269,
+      "total_revenue": 16161392.35,
+      "gross_margin": 5469529.98,
+      "gross_margin_pct": 0.3384,
+      "total_budget": 16426171.32
+    },
+    "APAC": {
+      "row_count": 8382,
+      "total_revenue": 16400911.83,
+      "gross_margin": 5530917.11,
+      "gross_margin_pct": 0.3372,
+      "total_budget": 16566704.5
+    }
+  },
+  "by_sales_rep_upn": {
+    "alice.emea@contoso.com": {
+      "row_count": 2099,
+      "total_revenue": 4138709.12,
+      "gross_margin": 1401586.7
+    },
+    "lukas.emea@contoso.com": {
+      "row_count": 2069,
+      "total_revenue": 4019251.91,
+      "gross_margin": 1371077.55
+    },
+    "chloe.emea@contoso.com": {
+      "row_count": 2069,
+      "total_revenue": 4006343.3,
+      "gross_margin": 1351474.3
+    },
+    "tariq.emea@contoso.com": {
+      "row_count": 2032,
+      "total_revenue": 3997088.02,
+      "gross_margin": 1345391.43
+    },
+    "bob.na@contoso.com": {
+      "row_count": 2051,
+      "total_revenue": 3942628.07,
+      "gross_margin": 1331756.48
+    },
+    "maya.na@contoso.com": {
+      "row_count": 2063,
+      "total_revenue": 3949826.78,
+      "gross_margin": 1331290.84
+    },
+    "liam.na@contoso.com": {
+      "row_count": 2078,
+      "total_revenue": 4123929.23,
+      "gross_margin": 1405997.85
+    },
+    "sofia.na@contoso.com": {
+      "row_count": 2157,
+      "total_revenue": 4165462.56,
+      "gross_margin": 1405123.6
+    },
+    "carol.apac@contoso.com": {
+      "row_count": 2103,
+      "total_revenue": 4086905.75,
+      "gross_margin": 1378476.23
+    },
+    "kenji.apac@contoso.com": {
+      "row_count": 2107,
+      "total_revenue": 4074102.15,
+      "gross_margin": 1385669.93
+    },
+    "aarav.apac@contoso.com": {
+      "row_count": 2005,
+      "total_revenue": 3949397.15,
+      "gross_margin": 1325422.67
+    },
+    "minji.apac@contoso.com": {
+      "row_count": 2167,
+      "total_revenue": 4290506.78,
+      "gross_margin": 1441348.28
+    },
+    "unauthorized.user@contoso.com": {
+      "row_count": 0,
+      "total_revenue": 0.0,
+      "gross_margin": 0.0
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# Autonomous BI Engineering Agent Toolchain Configuration
+# Empty path overrides trigger automatic local discovery.
+
+paths:
+  pbir: ""
+  tabular_editor: ""
+  dscmd: ""
+  adomd_dir: ""
+  powerbi_desktop: ""
+  mcp_config: ""
+
+timeouts_seconds:
+  pbir: 60
+  tabular_editor: 120
+  dscmd: 120
+  adomd: 60
+
+gates:
+  bpa_fail_severity: "Error"
+  dax_numeric_tolerance: 0.01
+  perf_budget_cold_ms: 1500
+  perf_budget_warm_ms: 500
+  desktop_screenshot_settle_ms: 750
+
+project:
+  pbip_project_dir: "pbi/EnterpriseSales"
+  ground_truth_path: "data/ground_truth/expected_metrics.json"

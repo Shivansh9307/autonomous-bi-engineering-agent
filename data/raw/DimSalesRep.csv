@@ -1,0 +1,13 @@
+SalesRepKey,RepName,Region,UserPrincipalName,ManagerUPN
+1,Alice Martin,EMEA,alice.emea@contoso.com,vp.emea@contoso.com
+2,Lukas Weber,EMEA,lukas.emea@contoso.com,vp.emea@contoso.com
+3,Chloe Dubois,EMEA,chloe.emea@contoso.com,vp.emea@contoso.com
+4,Tariq Al-Mansoor,EMEA,tariq.emea@contoso.com,vp.emea@contoso.com
+5,Bob Johnson,NA,bob.na@contoso.com,vp.na@contoso.com
+6,Maya Patel,NA,maya.na@contoso.com,vp.na@contoso.com
+7,Liam O'Connor,NA,liam.na@contoso.com,vp.na@contoso.com
+8,Sofia Reyes,NA,sofia.na@contoso.com,vp.na@contoso.com
+9,Carol Tan,APAC,carol.apac@contoso.com,vp.apac@contoso.com
+10,Kenji Sato,APAC,kenji.apac@contoso.com,vp.apac@contoso.com
+11,Aarav Sharma,APAC,aarav.apac@contoso.com,vp.apac@contoso.com
+12,Min-Ji Park,APAC,minji.apac@contoso.com,vp.apac@contoso.com

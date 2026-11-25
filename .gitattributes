@@ -1,0 +1,20 @@
+* text=auto
+
+# Enforce LF for code, TMDL, config, and docs
+*.py text eol=lf
+*.tmdl text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.csx text eol=lf
+*.csv text eol=lf
+
+# Windows PowerShell scripts
+*.ps1 text eol=crlf
+
+# Binary assets
+*.png binary
+*.vpax binary
+*.abf binary
+*.pbix binary

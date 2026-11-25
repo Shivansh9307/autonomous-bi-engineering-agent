@@ -1,0 +1,19 @@
+StoreKey,StoreCode,StoreName,Region,Country,Channel
+1,STR-NA-01,New York Midtown,NA,USA,Flagship
+2,STR-NA-02,San Francisco Embarcadero,NA,USA,Flagship
+3,STR-NA-03,Chicago Loop,NA,USA,Metro
+4,STR-NA-04,Austin Domain,NA,USA,Metro
+5,STR-NA-05,Toronto Eaton,NA,Canada,Metro
+6,STR-NA-06,NA Enterprise Direct,NA,USA,Digital
+7,STR-EMEA-07,London Regent,EMEA,UK,Flagship
+8,STR-EMEA-08,Berlin Mitte,EMEA,Germany,Flagship
+9,STR-EMEA-09,Paris Opera,EMEA,France,Metro
+10,STR-EMEA-10,Amsterdam Zuid,EMEA,Netherlands,Metro
+11,STR-EMEA-11,Dubai DIFC,EMEA,UAE,Flagship
+12,STR-EMEA-12,EMEA Enterprise Direct,EMEA,UK,Digital
+13,STR-APAC-13,Singapore Marina,APAC,Singapore,Flagship
+14,STR-APAC-14,Tokyo Ginza,APAC,Japan,Flagship
+15,STR-APAC-15,Sydney George St,APAC,Australia,Metro
+16,STR-APAC-16,Bengaluru Indiranagar,APAC,India,Metro
+17,STR-APAC-17,Seoul Gangnam,APAC,South Korea,Metro
+18,STR-APAC-18,APAC Enterprise Direct,APAC,Singapore,Digital

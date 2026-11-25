@@ -1,0 +1,23 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Power BI Project (PBIP) local runtime state
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+
+# Ephemeral & large binary artifacts
+tmp/
+artifacts/runs/*/*.vpax
+
+# OS / Editor
+Thumbs.db
+.DS_Store
+.vscode/
