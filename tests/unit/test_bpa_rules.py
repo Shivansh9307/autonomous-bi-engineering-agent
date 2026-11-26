@@ -69,3 +69,32 @@ def test_parse_bpa_output_github_and_standard_formats() -> None:
     assert violations[1].severity == "warning"
     assert violations[1].rule_id == "META_MEASURE_NO_DESCRIPTION"
     assert violations[1].object_name == "[Gross Margin]"
+
+
+def test_parse_bpa_output_te2_quoted_gha_format() -> None:
+    rules_lookup = {
+        "Visible measure missing format string": {
+            "ID": "ERR_MEASURE_NO_FORMAT_STRING",
+            "Severity": 3,
+        },
+        "Avoid bi-directional relationships": {
+            "ID": "ERR_AVOID_BIDIR_RELATIONSHIPS",
+            "Severity": 3,
+        },
+    }
+    stdout = "\n".join(
+        [
+            '::error:: Measure [Fault Ratio] violates rule "Visible measure missing format string"',
+            "::error:: Relationship 'FactSales'[StoreKey] <--> 'DimStore'[StoreKey] "
+            'violates rule "Avoid bi-directional relationships"',
+        ]
+    )
+    violations = parse_bpa_output(stdout, "", rules_by_name=rules_lookup)
+    assert len(violations) == 2
+    assert violations[0].rule_id == "ERR_MEASURE_NO_FORMAT_STRING"
+    assert violations[0].object_type == "Measure"
+    assert violations[0].object_name == "[Fault Ratio]"
+    assert violations[0].severity == "error"
+    assert violations[1].rule_id == "ERR_AVOID_BIDIR_RELATIONSHIPS"
+    assert violations[1].object_type == "Relationship"
+    assert violations[1].severity == "error"

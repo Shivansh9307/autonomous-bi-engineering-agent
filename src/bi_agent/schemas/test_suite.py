@@ -41,6 +41,9 @@ class OverallMetrics(BaseModel):
     total_units: int
     total_discount: float
     discount_rate_pct: float
+    gross_revenue: float | None = None
+    active_customers: int | None = None
+    revenue_per_customer: float | None = None
     average_order_value: float
     total_budget: float
     budget_variance: float

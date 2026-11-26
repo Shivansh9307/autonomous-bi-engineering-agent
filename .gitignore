@@ -15,6 +15,7 @@ build/
 
 # Ephemeral & large binary artifacts
 tmp/
+.pbir/
 artifacts/runs/*/*.vpax
 
 # OS / Editor

@@ -121,6 +121,30 @@ table _Measures
 		displayFolder: 04 KPI & Formatting
 		lineageTag: 2670587d-a24d-4242-a97b-f9a3cf8186b4
 
+	/// Sum of pre-discount gross sales revenue across order lines.
+	measure 'Gross Revenue' = SUM ( 'FactSales'[GrossAmount] )
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 7a99075d-c83b-4960-9447-083651a9ecdd
+
+	/// Total discount amount as a share of pre-discount gross revenue.
+	measure 'Discount Rate %' = DIVIDE ( [Total Discount], [Gross Revenue] )
+		formatString: 0.00%
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 5edd624c-0259-4018-988c-b6ac0ccebfe8
+
+	/// Count of distinct customer accounts with at least one sales order line.
+	measure 'Active Customers' = DISTINCTCOUNT ( 'FactSales'[CustomerKey] )
+		formatString: #,##0
+		displayFolder: 05 Customer Analytics
+		lineageTag: 545c403d-19a7-4164-b350-55884fff68a1
+
+	/// Average net sales revenue generated per active customer account.
+	measure 'Revenue per Customer' = DIVIDE ( [Total Revenue], [Active Customers] )
+		formatString: $#,##0.00
+		displayFolder: 05 Customer Analytics
+		lineageTag: 1227385b-9c32-4ec2-ae4a-1eeb2e9943bf
+
 	column _Placeholder
 		dataType: string
 		isHidden

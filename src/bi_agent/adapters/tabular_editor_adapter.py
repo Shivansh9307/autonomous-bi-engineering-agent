@@ -17,6 +17,26 @@ VIOLATES_RULE_RE = re.compile(
     r"^(?P<obj>.+?)\s+\((?P<type>[^)]+)\)\s+violates rule\s+\[(?P<id>[^\]]+)\]\s*(?P<name>.*)$",
     re.IGNORECASE,
 )
+VIOLATES_QUOTED_RULE_RE = re.compile(
+    r'^(?P<obj>.+?)\s+violates rule\s+"(?P<name>[^"]+)"\s*$',
+    re.IGNORECASE,
+)
+TOM_OBJECT_PREFIXES = (
+    "Calculated Column ",
+    "Calculation Group ",
+    "Calculation Item ",
+    "Table Permission ",
+    "Data Column ",
+    "Relationship ",
+    "Hierarchy ",
+    "Partition ",
+    "Measure ",
+    "Column ",
+    "Table ",
+    "Model ",
+    "Level ",
+    "Role ",
+)
 RULE_VIOLATED_BY_RE = re.compile(
     r"^Rule\s+'(?P<name>[^']+)'\s+(?:\((?P<id>[^)]+)\)\s+)?"
     r"violated by\s+(?P<obj>.+?)\s*(?:\((?P<type>[^)]+)\))?\.?$",
@@ -130,10 +150,35 @@ def parse_bpa_output(
             )
             continue
 
-        m2 = RULE_VIOLATED_BY_RE.match(body)
+        m2 = VIOLATES_QUOTED_RULE_RE.match(body)
         if m2:
+            raw_obj = m2.group("obj").strip()
+            obj_type = ""
+            obj_name = raw_obj
+            for prefix in TOM_OBJECT_PREFIXES:
+                if raw_obj.lower().startswith(prefix.lower()):
+                    obj_type = raw_obj[: len(prefix)].strip()
+                    obj_name = raw_obj[len(prefix) :].strip()
+                    break
             rule_name = m2.group("name").strip()
-            rule_id = (m2.group("id") or "").strip()
+            meta = lookup.get(rule_name) or {}
+            sev = _severity_from_int(meta.get("Severity"), fallback_sev)
+            violations.append(
+                BpaViolation(
+                    rule_id=str(meta.get("ID", "")),
+                    rule_name=rule_name,
+                    severity=sev,
+                    object_name=obj_name,
+                    object_type=obj_type,
+                    message=body,
+                )
+            )
+            continue
+
+        m3 = RULE_VIOLATED_BY_RE.match(body)
+        if m3:
+            rule_name = m3.group("name").strip()
+            rule_id = (m3.group("id") or "").strip()
             meta = lookup.get(rule_id) or lookup.get(rule_name) or {}
             sev = _severity_from_int(meta.get("Severity"), fallback_sev)
             violations.append(
@@ -141,8 +186,8 @@ def parse_bpa_output(
                     rule_id=rule_id or str(meta.get("ID", "")),
                     rule_name=rule_name,
                     severity=sev,
-                    object_name=m2.group("obj").strip(),
-                    object_type=(m2.group("type") or "").strip(),
+                    object_name=m3.group("obj").strip(),
+                    object_type=(m3.group("type") or "").strip(),
                     message=body,
                 )
             )

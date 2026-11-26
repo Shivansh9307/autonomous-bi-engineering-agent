@@ -1,0 +1,169 @@
+id: REQ-002
+title: Customer Segment, Discount Rate & APAC RLS Expansion
+owner: Commercial Finance & Revenue Operations
+status: approved
+target_pbip: pbi/EnterpriseSales
+
+business_context:
+  audience:
+    - Chief Revenue Officer & Regional VPs (Executive Overview)
+    - Regional Sales Directors (Regional Margin Analysis)
+    - Category & Merchandising Managers (Product Detail)
+    - Revenue Operations & Pricing Leads (Customer & Discounts)
+  decision_questions:
+    - How are Net Revenue, Gross Margin %, and Budget Variance trending across fiscal years and months?
+    - Which regions (NA, EMEA, APAC) and stores are outperforming or missing margin and budget targets?
+    - Which product categories and subcategories drive margin volume versus discounting drag?
+    - How do pre-discount Gross Revenue, Discount Rate %, Active Customers, and Revenue per Customer vary across customer segments?
+    - Do regional directors (including APAC) and individual sales reps see strictly their authorized territory rows?
+
+star_schema:
+  facts:
+    - name: FactSales
+      grain: One row per sales order line item (SalesOrderID + OrderLineNumber)
+      source: data/raw/FactSales.csv
+    - name: FactBudget
+      grain: One row per store per calendar month (DateKey first-of-month + StoreKey)
+      source: data/raw/FactBudget.csv
+  dimensions:
+    - name: DimDate
+      key: DateKey
+      mark_as_date_table: Date
+      source: data/raw/DimDate.csv
+      hierarchies:
+        - name: Calendar Hierarchy
+          levels: [Year, Quarter, MonthName]
+    - name: DimProduct
+      key: ProductKey
+      source: data/raw/DimProduct.csv
+      hierarchies:
+        - name: Product Hierarchy
+          levels: [Category, Subcategory, ProductName]
+    - name: DimStore
+      key: StoreKey
+      source: data/raw/DimStore.csv
+      hierarchies:
+        - name: Geography Hierarchy
+          levels: [Region, Country, StoreName]
+    - name: DimCustomer
+      key: CustomerKey
+      source: data/raw/DimCustomer.csv
+    - name: DimSalesRep
+      key: SalesRepKey
+      source: data/raw/DimSalesRep.csv
+  relationships:
+    - "FactSales[DateKey] -> DimDate[DateKey] (*:1, Single)"
+    - "FactSales[ProductKey] -> DimProduct[ProductKey] (*:1, Single)"
+    - "FactSales[StoreKey] -> DimStore[StoreKey] (*:1, Single)"
+    - "FactSales[CustomerKey] -> DimCustomer[CustomerKey] (*:1, Single)"
+    - "FactSales[SalesRepKey] -> DimSalesRep[SalesRepKey] (*:1, Single)"
+    - "FactBudget[DateKey] -> DimDate[DateKey] (*:1, Single)"
+    - "FactBudget[StoreKey] -> DimStore[StoreKey] (*:1, Single)"
+
+measures:
+  display_table: _Measures
+  kpis:
+    - name: Total Revenue
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Total COGS
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Gross Margin
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Gross Margin %
+      folder: "01 Revenue & Margin"
+      format: "0.00%"
+    - name: Total Units
+      folder: "01 Revenue & Margin"
+      format: "#,##0"
+    - name: Total Discount
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Average Order Value
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Gross Revenue
+      folder: "01 Revenue & Margin"
+      format: "$#,##0.00"
+    - name: Discount Rate %
+      folder: "01 Revenue & Margin"
+      format: "0.00%"
+    - name: Revenue PY
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+    - name: Revenue YoY
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+    - name: Revenue YoY %
+      folder: "02 Time Intelligence"
+      format: "0.00%"
+    - name: Revenue YTD
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+    - name: Revenue Rolling 3M
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+    - name: Budget Revenue
+      folder: "03 Budget & Variance"
+      format: "$#,##0.00"
+    - name: Budget Variance
+      folder: "03 Budget & Variance"
+      format: "$#,##0.00"
+    - name: Budget Variance %
+      folder: "03 Budget & Variance"
+      format: "0.00%"
+    - name: Budget Attainment Status
+      folder: "04 KPI & Formatting"
+      format: "@"
+    - name: Active Customers
+      folder: "05 Customer Analytics"
+      format: "#,##0"
+    - name: Revenue per Customer
+      folder: "05 Customer Analytics"
+      format: "$#,##0.00"
+
+rls_roles:
+  - name: Region_NA
+    type: static
+    table: DimStore
+    filter: "'DimStore'[Region] = \"NA\""
+    expected_fail_closed: true
+  - name: Region_EMEA
+    type: static
+    table: DimStore
+    filter: "'DimStore'[Region] = \"EMEA\""
+    expected_fail_closed: true
+  - name: Region_APAC
+    type: static
+    table: DimStore
+    filter: "'DimStore'[Region] = \"APAC\""
+    expected_fail_closed: true
+  - name: Dynamic_SalesRep
+    type: dynamic
+    table: DimSalesRep
+    filter: 'VAR _Custom = CUSTOMDATA() VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME() ) RETURN ''DimSalesRep''[UserPrincipalName] = _Identity'
+    expected_fail_closed: true
+    test_principals:
+      - alice.emea@contoso.com
+      - bob.na@contoso.com
+      - unauthorized.user@contoso.com
+
+report_pages:
+  - slug: Executive_Overview
+    intent: Top-level KPI cards, monthly revenue vs budget trend, regional gross margin comparison, and category performance matrix.
+  - slug: Regional_Margin_Analysis
+    intent: Territory margin variance, store breakdown, and sales rep performance leaderboard.
+  - slug: Product_Detail
+    intent: Category and subcategory profitability decomposition and granular product table.
+  - slug: Customer_Discounts
+    intent: Customer segment revenue and margin mix, discount rate diagnostics by category, and account-level profitability matrix.
+
+verification_acceptance:
+  bpa_max_errors: 0
+  dax_numeric_tolerance: 0.01
+  perf_budget_cold_ms: 1500
+  perf_budget_warm_ms: 500
+  rls_unauthorized_must_return_zero_rows: true
+  require_desktop_screenshots: true

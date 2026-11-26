@@ -14,7 +14,7 @@
             "altText": {
               "expr": {
                 "Literal": {
-                  "Value": "'Navigate between Executive Overview, Regional Margin Analysis, and Product Detail pages'"
+                  "Value": "'Navigate between Executive Overview, Regional Margin Analysis, Product Detail, and Customer & Discounts pages'"
                 }
               }
             }
@@ -24,9 +24,9 @@
     }
   },
   "position": {
-    "x": 784,
+    "x": 688,
     "y": 24,
-    "width": 472,
+    "width": 568,
     "height": 60,
     "z": 0,
     "tabOrder": 0

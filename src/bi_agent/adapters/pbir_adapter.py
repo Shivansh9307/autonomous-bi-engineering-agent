@@ -60,7 +60,7 @@ def validate_report(
         cmd.append("--all")
     res = run_command(cmd, timeout=config.timeouts_seconds.pbir)
     lines = [ln.strip() for ln in res.combined_output.splitlines() if ln.strip()]
-    ok = res.returncode in (0, 1)
+    ok = res.returncode == 0
     return PbirValidateResult(
         ok=ok,
         exit_code=res.returncode,

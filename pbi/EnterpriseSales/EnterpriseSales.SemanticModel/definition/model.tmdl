@@ -21,4 +21,5 @@ ref table _Measures
 ref role Region_NA
 ref role Region_EMEA
 ref role Dynamic_SalesRep
+ref role Region_APAC
 

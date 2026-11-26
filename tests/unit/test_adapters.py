@@ -206,6 +206,22 @@ def test_adomd_and_pbir_adapters_mocked(tmp_path: Path, monkeypatch: pytest.Monk
     assert len(sres.screenshots) == 1
     assert sres.screenshots[0].size_bytes > 1024
 
+    monkeypatch.setattr(
+        pbir_adapter,
+        "run_command",
+        lambda *_a, **_kw: CommandResult(returncode=1, stdout="Error: invalid visual.json"),
+    )
+    val_fail = pbir_adapter.validate_report(tmp_path / "Rep.Report", ToolchainConfig())
+    assert val_fail.ok is False
+
+    monkeypatch.setattr(
+        pbir_adapter,
+        "run_command",
+        lambda *_a, **_kw: CommandResult(returncode=0, stdout="Valid (0 warnings)"),
+    )
+    val_ok = pbir_adapter.validate_report(tmp_path / "Rep.Report", ToolchainConfig())
+    assert val_ok.ok is True
+
 
 def test_parse_benchmark_csv_dscmd_v3_format(tmp_path: Path) -> None:
     csv_path = tmp_path / "benchmark_results.csv"

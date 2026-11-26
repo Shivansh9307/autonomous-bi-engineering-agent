@@ -1,0 +1,47 @@
+{
+  "name": "bi-delivery",
+  "description": "Multi-stage Antigravity Power BI engineering workflow orchestrating G1 design validation, optional semantic model & PBIR delivery, parallel specialist hygiene/governance audits, and G1-G7 evidence-gated release.",
+  "entry": "workflow.py",
+  "args": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "req_id",
+      "requirement_path"
+    ],
+    "properties": {
+      "req_id": {
+        "type": "string",
+        "description": "Requirement identifier (e.g. REQ-001, REQ-002)."
+      },
+      "requirement_path": {
+        "type": "string",
+        "description": "Relative or absolute path to the requirement YAML contract."
+      },
+      "project_dir": {
+        "type": "string",
+        "default": "pbi/EnterpriseSales",
+        "description": "Target PBIP project directory."
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "deliver",
+          "audit"
+        ],
+        "default": "audit",
+        "description": "deliver runs end-to-end model/report authoring + G1-G7 verification; audit runs G1 + parallel specialist audits without mutating artifacts."
+      },
+      "auto_commit": {
+        "type": "boolean",
+        "default": false,
+        "description": "When mode=deliver and all 7 gates pass, run bi-agent git-commit."
+      },
+      "allow_main": {
+        "type": "boolean",
+        "default": false,
+        "description": "Allow committing directly on main/master when auto_commit is true."
+      }
+    }
+  }
+}

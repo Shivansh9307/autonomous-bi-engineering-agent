@@ -58,6 +58,14 @@ SUMMARIZECOLUMNS(
     "BudgetVariancePct", [Budget Variance %]
 )"""
 
+CUSTOMER_DISCOUNT_DAX_QUERY = """EVALUATE
+ROW(
+    "GrossRevenue", [Gross Revenue],
+    "DiscountRatePct", [Discount Rate %],
+    "ActiveCustomers", [Active Customers],
+    "RevenuePerCustomer", [Revenue per Customer]
+)"""
+
 
 def _get_field(row: dict[str, Any], *candidates: str) -> Any:
     """Resolve column values across plain or ADOMD-qualified (`[Col]`, `Table[Col]`) keys."""
@@ -353,6 +361,41 @@ def run_gate_g4(
                 findings,
                 checks,
             )
+
+    if (
+        gt.overall.gross_revenue is not None
+        and gt.overall.active_customers is not None
+        and gt.overall.revenue_per_customer is not None
+    ):
+        cd_res = adomd_adapter.execute_dax(
+            target_port, CUSTOMER_DISCOUNT_DAX_QUERY, config, repo_root, database=target_db
+        )
+        if not cd_res.ok or not cd_res.rows:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_CUSTOMER_DISCOUNT_QUERY_FAILED",
+                    message=cd_res.error or "Customer & discount DAX query failed.",
+                )
+            )
+        else:
+            cd_row = cd_res.rows[0]
+            cd_pairs = [
+                ("GrossRevenue", gt.overall.gross_revenue, tol),
+                ("DiscountRatePct", gt.overall.discount_rate_pct, 0.0005),
+                ("ActiveCustomers", float(gt.overall.active_customers), 0.0),
+                ("RevenuePerCustomer", gt.overall.revenue_per_customer, tol),
+            ]
+            for field_name, expected_val, field_tol in cd_pairs:
+                _compare_numeric(
+                    "overall",
+                    field_name,
+                    _get_field(cd_row, field_name),
+                    expected_val,
+                    field_tol,
+                    findings,
+                    checks,
+                )
 
     perf_metrics: dict[str, Any] = {"benchmark_skipped": skip_benchmark}
     artifacts: list[str] = []

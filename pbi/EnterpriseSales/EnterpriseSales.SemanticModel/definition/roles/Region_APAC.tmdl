@@ -1,0 +1,5 @@
+role Region_APAC
+	modelPermission: read
+
+	tablePermission DimStore = 'DimStore'[Region] = "APAC"
+

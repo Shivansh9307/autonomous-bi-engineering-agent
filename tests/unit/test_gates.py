@@ -69,6 +69,19 @@ def test_gate_g4_dax_reconciliation_pass_and_drift_fail(
                 ],
                 row_count=len(gt.by_region),
             )
+        if "ActiveCustomers" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[GrossRevenue]": gt.overall.gross_revenue,
+                        "[DiscountRatePct]": gt.overall.discount_rate_pct,
+                        "[ActiveCustomers]": gt.overall.active_customers,
+                        "[RevenuePerCustomer]": gt.overall.revenue_per_customer,
+                    }
+                ],
+                row_count=1,
+            )
         return DaxQueryResult(
             ok=True,
             rows=[

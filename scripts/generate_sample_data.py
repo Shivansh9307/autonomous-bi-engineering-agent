@@ -226,6 +226,7 @@ def main() -> None:
     overall_gross = Decimal("0.00")
     overall_units = 0
     order_ids: set[str] = set()
+    customer_keys: set[int] = set()
 
     year_stats: dict[str, dict[str, Decimal | int]] = {
         str(y): {"revenue": Decimal("0.00"), "cogs": Decimal("0.00")} for y in (2024, 2025, 2026)
@@ -269,6 +270,7 @@ def main() -> None:
             order_id = f"SO-{year}-{(row_counter + 1) // 2:06d}"
             line_num = 1 if (row_counter % 2 == 1) else 2
             order_ids.add(order_id)
+            customer_keys.add(customer_key)
 
             fact_sales.append(
                 {
@@ -438,6 +440,9 @@ def main() -> None:
             "total_units": overall_units,
             "total_discount": float(q2(overall_disc)),
             "discount_rate_pct": float(q4(overall_disc / overall_gross)),
+            "gross_revenue": float(q2(overall_gross)),
+            "active_customers": len(customer_keys),
+            "revenue_per_customer": float(q2(overall_rev / len(customer_keys))),
             "average_order_value": float(q2(overall_rev / len(order_ids))),
             "total_budget": float(q2(total_budget)),
             "budget_variance": float(q2(budget_var)),
