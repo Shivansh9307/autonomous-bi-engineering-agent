@@ -43,36 +43,6 @@
       }
     },
     "objects": {
-      "referenceLabel": [
-        {
-          "properties": {
-            "value": {
-              "expr": {
-                "Measure": {
-                  "Expression": {
-                    "SourceRef": {
-                      "Entity": "_Measures"
-                    }
-                  },
-                  "Property": "Budget Variance"
-                }
-              }
-            }
-          },
-          "selector": {
-            "metadata": "_Measures.Budget Variance %",
-            "id": "field-63d375e6-6ced-42d5-b6ed-15d48262b599",
-            "data": [
-              {
-                "dataViewWildcard": {
-                  "matchingOption": 0
-                }
-              }
-            ],
-            "order": 0
-          }
-        }
-      ],
       "referenceLabelTitle": [
         {
           "properties": {
@@ -93,7 +63,7 @@
             "titleText": {
               "expr": {
                 "Literal": {
-                  "Value": "'Variance $'"
+                  "Value": "'Variance'"
                 }
               }
             }
@@ -133,6 +103,36 @@
           },
           "selector": {
             "id": "default"
+          }
+        }
+      ],
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Budget Variance"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Budget Variance %",
+            "id": "field-63d375e6-6ced-42d5-b6ed-15d48262b599",
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 0
+                }
+              }
+            ],
+            "order": 0
           }
         }
       ]

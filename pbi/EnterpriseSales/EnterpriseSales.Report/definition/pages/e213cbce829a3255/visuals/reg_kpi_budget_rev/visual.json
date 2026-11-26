@@ -74,6 +74,67 @@
             "id": "default"
           }
         }
+      ],
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Total Revenue"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Budget Revenue",
+            "id": "field-5010f071-fc02-4375-b6a6-6d2314a6d70a",
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 0
+                }
+              }
+            ],
+            "order": 0
+          }
+        }
+      ],
+      "referenceLabelTitle": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "titleContentType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'custom'"
+                }
+              }
+            },
+            "titleText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Actuals'"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Budget Revenue",
+            "id": "field-5010f071-fc02-4375-b6a6-6d2314a6d70a"
+          }
+        }
       ]
     },
     "drillFilterOtherVisuals": true,

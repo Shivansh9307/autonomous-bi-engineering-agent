@@ -1,13 +1,13 @@
 {
   "name": "chart_monthly_rev_budget",
   "visual": {
-    "visualType": "lineChart",
+    "visualType": "lineClusteredColumnComboChart",
     "query": {
       "queryState": {
         "Category": {
           "projections": [
             {
-              "queryRef": "DimDate.YearMonth",
+              "queryRef": "DimDate.MonthStart",
               "field": {
                 "Column": {
                   "Expression": {
@@ -15,10 +15,10 @@
                       "Entity": "DimDate"
                     }
                   },
-                  "Property": "YearMonth"
+                  "Property": "MonthStart"
                 }
               },
-              "nativeQueryRef": "YearMonth"
+              "nativeQueryRef": "MonthStart"
             }
           ]
         },
@@ -37,7 +37,11 @@
                 }
               },
               "nativeQueryRef": "Total Revenue"
-            },
+            }
+          ]
+        },
+        "Y2": {
+          "projections": [
             {
               "queryRef": "_Measures.Budget Revenue",
               "field": {
@@ -53,6 +57,38 @@
               "nativeQueryRef": "Budget Revenue"
             }
           ]
+        },
+        "Tooltips": {
+          "projections": [
+            {
+              "queryRef": "_Measures.Budget Variance",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Budget Variance"
+                }
+              },
+              "nativeQueryRef": "Budget Variance"
+            },
+            {
+              "queryRef": "_Measures.Budget Variance %",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Budget Variance %"
+                }
+              },
+              "nativeQueryRef": "Budget Variance %"
+            }
+          ]
         }
       },
       "sortDefinition": {
@@ -65,7 +101,7 @@
                     "Entity": "DimDate"
                   }
                 },
-                "Property": "YearMonth"
+                "Property": "MonthStart"
               }
             },
             "direction": "Ascending"
@@ -75,6 +111,74 @@
       }
     },
     "objects": {
+      "categoryAxis": [
+        {
+          "properties": {
+            "axisType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Scalar'"
+                }
+              }
+            },
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "showAxisTitle": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "valueAxis": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "showAxisTitle": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            },
+            "start": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            },
+            "sharedAxis": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "secShow": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
       "legend": [
         {
           "properties": {
@@ -82,6 +186,26 @@
               "expr": {
                 "Literal": {
                   "Value": "true"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "lineStyles": [
+        {
+          "properties": {
+            "strokeWidth": {
+              "expr": {
+                "Literal": {
+                  "Value": "2.5D"
+                }
+              }
+            },
+            "areaShow": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
                 }
               }
             }
@@ -123,19 +247,6 @@
             }
           }
         }
-      ],
-      "general": [
-        {
-          "properties": {
-            "altText": {
-              "expr": {
-                "Literal": {
-                  "Value": "'Line chart comparing Monthly Total Revenue against Budget Revenue across YearMonth'"
-                }
-              }
-            }
-          }
-        }
       ]
     }
   },
@@ -143,7 +254,7 @@
     "x": 24,
     "y": 256,
     "width": 608,
-    "height": 212,
+    "height": 200,
     "z": 0,
     "tabOrder": 0
   },

@@ -10,7 +10,7 @@ paths:
   mcp_config: ""
 
 timeouts_seconds:
-  pbir: 60
+  pbir: 120
   tabular_editor: 120
   dscmd: 120
   adomd: 60

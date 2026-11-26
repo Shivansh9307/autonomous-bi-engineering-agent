@@ -74,6 +74,67 @@
             "id": "default"
           }
         }
+      ],
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Average Order Value"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total Units",
+            "id": "field-13d80734-a41d-43ee-a53f-c5ca93dbcfe2",
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 0
+                }
+              }
+            ],
+            "order": 0
+          }
+        }
+      ],
+      "referenceLabelTitle": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "titleContentType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'custom'"
+                }
+              }
+            },
+            "titleText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Avg Order Value'"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total Units",
+            "id": "field-13d80734-a41d-43ee-a53f-c5ca93dbcfe2"
+          }
+        }
       ]
     },
     "drillFilterOtherVisuals": true,

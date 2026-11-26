@@ -74,6 +74,67 @@
             "id": "default"
           }
         }
+      ],
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Gross Margin %"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total COGS",
+            "id": "field-fd3a10fa-fb1a-4d7c-b6f1-0b9213a13636",
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 0
+                }
+              }
+            ],
+            "order": 0
+          }
+        }
+      ],
+      "referenceLabelTitle": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "titleContentType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'custom'"
+                }
+              }
+            },
+            "titleText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Gross Margin %'"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total COGS",
+            "id": "field-fd3a10fa-fb1a-4d7c-b6f1-0b9213a13636"
+          }
+        }
       ]
     },
     "drillFilterOtherVisuals": true,

@@ -81,6 +81,14 @@ table DimDate
 		summarizeBy: none
 		sourceColumn: IsWeekend
 
+	/// First calendar day of each month derived via Date.StartOfMonth([Date]) for continuous monthly trend axes.
+	column MonthStart
+		dataType: dateTime
+		formatString: mmm yyyy
+		lineageTag: 5499e6db-5c77-47bd-a4ba-f8c8cb45b3ad
+		summarizeBy: none
+		sourceColumn: MonthStart
+
 	hierarchy 'Calendar Hierarchy'
 		lineageTag: 38cfccf9-f246-4e88-b64f-44be463800cc
 
@@ -114,7 +122,8 @@ table DimDate
 				        {"YearMonthSort", Int64.Type},
 				        {"DayOfWeek", type text},
 				        {"IsWeekend", Int64.Type}
-				    }, "en-US")
+				    }, "en-US"),
+				    #"Added MonthStart" = Table.AddColumn(#"Changed Type", "MonthStart", each Date.StartOfMonth([Date]), type date)
 				in
-				    #"Changed Type"
+				    #"Added MonthStart"
 
