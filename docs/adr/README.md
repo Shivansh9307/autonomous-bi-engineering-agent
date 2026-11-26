@@ -10,3 +10,4 @@ This directory captures the core architectural decisions behind the **Autonomous
 | [ADR-0004](0004-evidence-gated-git-commits-via-staged-tree-sha.md) | Evidence-Gated Git Commits Bound to Staged Tree SHA | Accepted | 2026-11-26 |
 | [ADR-0005](0005-offline-ci-versus-live-desktop-verification-split.md) | Offline CI vs. Live Power BI Desktop Verification Split | Accepted | 2026-11-26 |
 | [ADR-0006](0006-customdata-rls-testing-shim-and-service-hardening.md) | CUSTOMDATA() RLS Testing Shim & Power BI Service Hardening | Accepted | 2026-11-26 |
+| [ADR-0007](0007-gate-g0-data-profiling-and-domain-agnostic-contracts.md) | Gate G0 Data Profiling & Domain-Agnostic Declarative Contracts | Accepted | 2026-11-26 |

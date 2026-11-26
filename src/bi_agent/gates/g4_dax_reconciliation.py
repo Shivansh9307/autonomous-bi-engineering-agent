@@ -1,7 +1,8 @@
-"""Gate G4: Live DAX ground-truth reconciliation and performance benchmarking."""
+"""Gate G4: Contract-driven live DAX ground-truth reconciliation and performance benchmarking."""
 
 from __future__ import annotations
 
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -9,88 +10,14 @@ from typing import Any
 from bi_agent.adapters import adomd_adapter, dax_studio_adapter
 from bi_agent.config import ToolchainConfig
 from bi_agent.schemas.evidence import GateFinding, GateResult
-from bi_agent.schemas.test_suite import load_ground_truth
+from bi_agent.schemas.requirement import (
+    BusinessRequirement,
+    DaxVerificationSpec,
+    load_requirement,
+)
+from bi_agent.schemas.test_suite import GroundTruthNode, load_ground_truth, resolve_dot_path
 
-OVERALL_DAX_QUERY = """EVALUATE
-ROW(
-    "SalesRows", COUNTROWS('FactSales'),
-    "BudgetRows", COUNTROWS('FactBudget'),
-    "DistinctOrders", DISTINCTCOUNT('FactSales'[SalesOrderID]),
-    "TotalRevenue", [Total Revenue],
-    "TotalCOGS", [Total COGS],
-    "GrossMargin", [Gross Margin],
-    "GrossMarginPct", [Gross Margin %],
-    "TotalUnits", [Total Units],
-    "TotalDiscount", [Total Discount],
-    "AverageOrderValue", [Average Order Value],
-    "BudgetRevenue", [Budget Revenue],
-    "BudgetVariance", [Budget Variance],
-    "BudgetVariancePct", [Budget Variance %]
-)"""
-
-BY_YEAR_DAX_QUERY = """EVALUATE
-SUMMARIZECOLUMNS(
-    'DimDate'[Year],
-    "TotalRevenue", [Total Revenue],
-    "GrossMargin", [Gross Margin],
-    "BudgetRevenue", [Budget Revenue],
-    "RevenuePY", [Revenue PY],
-    "RevenueYoY", [Revenue YoY],
-    "RevenueYoYPct", [Revenue YoY %]
-)"""
-
-BY_REGION_DAX_QUERY = """EVALUATE
-SUMMARIZECOLUMNS(
-    'DimStore'[Region],
-    "RowCount", COUNTROWS('FactSales'),
-    "TotalRevenue", [Total Revenue],
-    "GrossMargin", [Gross Margin],
-    "GrossMarginPct", [Gross Margin %],
-    "BudgetRevenue", [Budget Revenue]
-)"""
-
-BENCHMARK_DAX = """EVALUATE
-SUMMARIZECOLUMNS(
-    'DimStore'[Region],
-    'DimDate'[Year],
-    "TotalRevenue", [Total Revenue],
-    "GrossMarginPct", [Gross Margin %],
-    "BudgetVariancePct", [Budget Variance %]
-)"""
-
-CUSTOMER_DISCOUNT_DAX_QUERY = """EVALUATE
-ROW(
-    "GrossRevenue", [Gross Revenue],
-    "DiscountRatePct", [Discount Rate %],
-    "ActiveCustomers", [Active Customers],
-    "RevenuePerCustomer", [Revenue per Customer]
-)"""
-
-CROSS_GRAIN_BUDGET_QUERY = """EVALUATE
-ROW(
-    "BudgetByProduct", CALCULATE([Budget Revenue], 'DimProduct'[Category] = "Cloud Hardware"),
-    "BudgetByCustomer", CALCULATE([Budget Revenue], 'DimCustomer'[Segment] = "Enterprise"),
-    "BudgetBySalesRep", CALCULATE([Budget Revenue], 'DimSalesRep'[Region] = "EMEA"),
-    "VarianceByProduct", CALCULATE([Budget Variance], 'DimProduct'[Category] = "Cloud Hardware")
-)"""
-
-NO_ACTUALS_GUARD_QUERY = """EVALUATE
-ROW(
-    "NoActualsBudget",
-        CALCULATE([Budget Revenue], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
-    "NoActualsVariance",
-        CALCULATE([Budget Variance], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
-    "NoActualsStatus",
-        CALCULATE([Budget Attainment Status], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
-    "NoBudgetStatus",
-        CALCULATE([Budget Attainment Status], 'DimProduct'[Category] = "Cloud Hardware")
-)"""
-
-FUTURE_PERIOD_CHECK_QUERY = """EVALUATE
-ROW(
-    "MaxDateKey", CALCULATE(MAX('DimDate'[DateKey]), REMOVEFILTERS()),
-    "MaxSalesDateKey", CALCULATE(MAX('FactSales'[DateKey]), REMOVEFILTERS())
-)"""
+ISO_DATE_MARKER_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$")
 
 
 def _get_field(row: dict[str, Any], *candidates: str) -> Any:
@@ -117,7 +44,7 @@ def _compare_numeric(
     tolerance: float,
     findings: list[GateFinding],
     checks: list[dict[str, Any]],
-) -> None:
+) -> float | None:
     if actual_raw is None:
         findings.append(
             GateFinding(
@@ -139,7 +66,7 @@ def _compare_numeric(
                 "status": "FAIL",
             }
         )
-        return
+        return None
 
     actual = float(actual_raw)
     diff = abs(actual - expected)
@@ -165,6 +92,98 @@ def _compare_numeric(
                 ),
             )
         )
+    return actual
+
+
+def _dax_spec_has_checks(spec: DaxVerificationSpec) -> bool:
+    return bool(
+        spec.scalar_queries
+        or spec.grouped_queries
+        or spec.accounting_identities
+        or spec.cross_grain_blank_checks
+        or spec.empty_context_guards
+        or spec.future_period_check is not None
+    )
+
+
+def _dax_spec_richness(spec: DaxVerificationSpec) -> int:
+    return (
+        sum(len(q.assertions) for q in spec.scalar_queries)
+        + sum(len(q.metrics) for q in spec.grouped_queries)
+        + len(spec.accounting_identities)
+        + len(spec.cross_grain_blank_checks)
+        + len(spec.empty_context_guards)
+        + (1 if spec.future_period_check is not None else 0)
+    )
+
+
+def _discover_requirement_for_ground_truth(
+    repo_root: Path,
+    ground_truth_path: Path,
+) -> BusinessRequirement | None:
+    req_dir = repo_root / "requirements"
+    if not req_dir.is_dir():
+        return None
+    target_gt = ground_truth_path.resolve()
+    candidates: list[tuple[int, str, BusinessRequirement]] = []
+    for yaml_path in sorted(req_dir.glob("*.yaml")):
+        try:
+            req = load_requirement(yaml_path)
+        except Exception:
+            continue
+        gt_rel = req.resolved_ground_truth_path()
+        if not gt_rel:
+            continue
+        if (repo_root / gt_rel).resolve() != target_gt:
+            continue
+        richness = _dax_spec_richness(req.verification.dax_checks)
+        if richness > 0:
+            candidates.append((richness, yaml_path.name, req))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[-1][2]
+
+
+def _parse_comparable_date_marker(raw_val: Any) -> tuple[Any, str]:
+    if raw_val is None:
+        return 0, "0"
+    if isinstance(raw_val, (int, float)):
+        ival = int(raw_val)
+        return ival, str(ival)
+    text = str(raw_val).strip()
+    m = ISO_DATE_MARKER_RE.match(text)
+    if m:
+        yr, mo, dy = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return (yr, mo, dy), f"DATE({yr}, {mo}, {dy})"
+    try:
+        ival = int(float(text))
+        return ival, str(ival)
+    except ValueError:
+        return text, f'"{text}"'
+
+
+def _extract_secondary_date_marker(row: dict[str, Any]) -> Any:
+    direct = _get_field(row, "MaxActualsDateKey")
+    if direct is not None:
+        return direct
+    for key, val in row.items():
+        clean = str(key).strip()
+        if "[" in clean and clean.endswith("]"):
+            clean = clean[clean.index("[") + 1 : -1]
+        if clean.lower() != "maxdatekey":
+            return val
+    return None
+
+
+def _resolve_benchmark_dax(spec: DaxVerificationSpec) -> str:
+    if spec.benchmark_dax.strip():
+        return spec.benchmark_dax.strip()
+    if spec.grouped_queries:
+        return spec.grouped_queries[0].dax.strip()
+    if spec.scalar_queries:
+        return spec.scalar_queries[0].dax.strip()
+    return ""
 
 
 def run_gate_g4(
@@ -176,16 +195,77 @@ def run_gate_g4(
     tolerance: float | None = None,
     skip_benchmark: bool = False,
     output_dir: Path | None = None,
+    requirement_path: Path | None = None,
+    dax_spec: DaxVerificationSpec | None = None,
+    report_name: str = "",
 ) -> GateResult:
-    """Reconcile live DAX measures against ground truth and enforce query latency budgets."""
+    """Reconcile live DAX measures against a declarative contract and enforce latency budgets."""
     start = time.perf_counter()
-    tol = tolerance if tolerance is not None else config.gates.dax_numeric_tolerance
     gt = load_ground_truth(ground_truth_path)
+
+    loaded_req: BusinessRequirement | None = None
+    if requirement_path is not None:
+        loaded_req = load_requirement(requirement_path)
+    elif dax_spec is None:
+        loaded_req = _discover_requirement_for_ground_truth(repo_root, ground_truth_path)
+
+    effective_spec = (
+        dax_spec
+        if dax_spec is not None
+        else (loaded_req.verification.dax_checks if loaded_req is not None else None)
+    )
+    if effective_spec is None or not _dax_spec_has_checks(effective_spec):
+        elapsed = int((time.perf_counter() - start) * 1000)
+        return GateResult(
+            gate_id="G4",
+            name="Live DAX Reconciliation & Perf",
+            status="FAIL",
+            duration_ms=elapsed,
+            summary="No declarative verification.dax_checks contract found for Gate G4.",
+            findings=[
+                GateFinding(
+                    severity="error",
+                    code="G4_CONTRACT_MISSING",
+                    message=(
+                        "Provide --requirement with verification.dax_checks or a matching "
+                        "requirement YAML referencing this ground_truth_path."
+                    ),
+                    location=str(requirement_path or ground_truth_path),
+                )
+            ],
+        )
+
+    tol = (
+        tolerance
+        if tolerance is not None
+        else (
+            loaded_req.verification_acceptance.dax_numeric_tolerance
+            if loaded_req is not None
+            else config.gates.dax_numeric_tolerance
+        )
+    )
+    cold_budget_ms = (
+        loaded_req.verification_acceptance.perf_budget_cold_ms
+        if loaded_req is not None
+        else config.gates.perf_budget_cold_ms
+    )
+    warm_budget_ms = (
+        loaded_req.verification_acceptance.perf_budget_warm_ms
+        if loaded_req is not None
+        else config.gates.perf_budget_warm_ms
+    )
+    target_report_name = (
+        report_name
+        or (loaded_req.resolved_desktop_report_name() if loaded_req is not None else "")
+        or config.project.desktop_report_name
+    )
 
     target_port = port
     target_db = database
     if target_port is None:
-        disc = adomd_adapter.discover_instance(config, repo_root)
+        disc = adomd_adapter.discover_instance(
+            config, repo_root, report_name=target_report_name
+        )
         if not disc.ok or not disc.selected:
             elapsed = int((time.perf_counter() - start) * 1000)
             return GateResult(
@@ -207,283 +287,186 @@ def run_gate_g4(
 
     findings: list[GateFinding] = []
     checks: list[dict[str, Any]] = []
+    scalar_actuals: dict[str, float] = {}
 
-    overall_res = adomd_adapter.execute_dax(
-        target_port, OVERALL_DAX_QUERY, config, repo_root, database=target_db
-    )
-    if not overall_res.ok or not overall_res.rows:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_OVERALL_QUERY_FAILED",
-                message=overall_res.error or "Overall DAX query returned no rows.",
-            )
+    for sq in effective_spec.scalar_queries:
+        res = adomd_adapter.execute_dax(
+            target_port, sq.dax, config, repo_root, database=target_db
         )
-    else:
-        row = overall_res.rows[0]
-        overall_pairs = [
-            ("SalesRows", float(gt.overall.sales_row_count), 0.0),
-            ("BudgetRows", float(gt.overall.budget_row_count), 0.0),
-            ("DistinctOrders", float(gt.overall.distinct_orders), 0.0),
-            ("TotalRevenue", gt.overall.total_revenue, tol),
-            ("TotalCOGS", gt.overall.total_cogs, tol),
-            ("GrossMargin", gt.overall.gross_margin, tol),
-            ("GrossMarginPct", gt.overall.gross_margin_pct, 0.0005),
-            ("TotalUnits", float(gt.overall.total_units), 0.0),
-            ("TotalDiscount", gt.overall.total_discount, tol),
-            ("AverageOrderValue", gt.overall.average_order_value, tol),
-            ("BudgetRevenue", gt.overall.total_budget, tol),
-            ("BudgetVariance", gt.overall.budget_variance, tol),
-            ("BudgetVariancePct", gt.overall.budget_variance_pct, 0.0005),
-        ]
-        for field_name, expected_val, field_tol in overall_pairs:
-            _compare_numeric(
-                "overall",
-                field_name,
-                _get_field(row, field_name),
-                expected_val,
+        if not res.ok or not res.rows:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_SCALAR_QUERY_FAILED",
+                    message=res.error or f"Scalar DAX query '{sq.name}' returned no rows.",
+                )
+            )
+            continue
+
+        row = res.rows[0]
+        for assertion in sq.assertions:
+            expected_raw: Any = assertion.expected_value
+            if expected_raw is None and assertion.expected_path:
+                expected_raw = gt.resolve(assertion.expected_path)
+            if expected_raw is None:
+                if assertion.optional:
+                    continue
+                findings.append(
+                    GateFinding(
+                        severity="error",
+                        code="G4_MISSING_EXPECTED",
+                        message=(
+                            f"[{sq.scope}] Missing expected ground-truth value for "
+                            f"'{assertion.alias}' (path={assertion.expected_path})."
+                        ),
+                    )
+                )
+                continue
+
+            field_tol = assertion.tolerance if assertion.tolerance is not None else tol
+            actual_val = _compare_numeric(
+                sq.scope,
+                assertion.alias,
+                _get_field(row, assertion.alias),
+                float(expected_raw),
                 field_tol,
                 findings,
                 checks,
             )
+            if actual_val is not None:
+                scalar_actuals[assertion.alias] = actual_val
+                scalar_actuals[f"{sq.name}.{assertion.alias}"] = actual_val
 
-    year_res = adomd_adapter.execute_dax(
-        target_port, BY_YEAR_DAX_QUERY, config, repo_root, database=target_db
-    )
-    if not year_res.ok:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_YEAR_QUERY_FAILED",
-                message=year_res.error or "By-year DAX query failed.",
-            )
+    for gq in effective_spec.grouped_queries:
+        res = adomd_adapter.execute_dax(
+            target_port, gq.dax, config, repo_root, database=target_db
         )
-    else:
-        year_rows = {
-            str(_get_field(r, "Year", "DimDate[Year]")): r
-            for r in year_res.rows
-            if _get_field(r, "Year", "DimDate[Year]") is not None
-        }
-        for yr, expected_yr in gt.by_year.items():
-            actual_yr = year_rows.get(yr)
-            if actual_yr is None:
-                findings.append(
-                    GateFinding(
-                        severity="error",
-                        code="G4_MISSING_YEAR",
-                        message=f"Year '{yr}' missing from SUMMARIZECOLUMNS output.",
-                    )
-                )
-                continue
-            _compare_numeric(
-                f"year:{yr}",
-                "TotalRevenue",
-                _get_field(actual_yr, "TotalRevenue"),
-                expected_yr.total_revenue,
-                tol,
-                findings,
-                checks,
-            )
-            _compare_numeric(
-                f"year:{yr}",
-                "GrossMargin",
-                _get_field(actual_yr, "GrossMargin"),
-                expected_yr.gross_margin,
-                tol,
-                findings,
-                checks,
-            )
-            _compare_numeric(
-                f"year:{yr}",
-                "BudgetRevenue",
-                _get_field(actual_yr, "BudgetRevenue"),
-                expected_yr.total_budget,
-                tol,
-                findings,
-                checks,
-            )
-            if expected_yr.revenue_py is not None:
-                _compare_numeric(
-                    f"year:{yr}",
-                    "RevenuePY",
-                    _get_field(actual_yr, "RevenuePY"),
-                    expected_yr.revenue_py,
-                    tol,
-                    findings,
-                    checks,
-                )
-            if expected_yr.revenue_yoy is not None:
-                _compare_numeric(
-                    f"year:{yr}",
-                    "RevenueYoY",
-                    _get_field(actual_yr, "RevenueYoY"),
-                    expected_yr.revenue_yoy,
-                    tol,
-                    findings,
-                    checks,
-                )
-
-    region_res = adomd_adapter.execute_dax(
-        target_port, BY_REGION_DAX_QUERY, config, repo_root, database=target_db
-    )
-    if not region_res.ok:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_REGION_QUERY_FAILED",
-                message=region_res.error or "By-region DAX query failed.",
-            )
-        )
-    else:
-        region_rows = {
-            str(_get_field(r, "Region", "DimStore[Region]")): r
-            for r in region_res.rows
-            if _get_field(r, "Region", "DimStore[Region]") is not None
-        }
-        for reg, expected_reg in gt.by_region.items():
-            actual_reg = region_rows.get(reg)
-            if actual_reg is None:
-                findings.append(
-                    GateFinding(
-                        severity="error",
-                        code="G4_MISSING_REGION",
-                        message=f"Region '{reg}' missing from SUMMARIZECOLUMNS output.",
-                    )
-                )
-                continue
-            _compare_numeric(
-                f"region:{reg}",
-                "RowCount",
-                _get_field(actual_reg, "RowCount"),
-                float(expected_reg.row_count),
-                0.0,
-                findings,
-                checks,
-            )
-            _compare_numeric(
-                f"region:{reg}",
-                "TotalRevenue",
-                _get_field(actual_reg, "TotalRevenue"),
-                expected_reg.total_revenue,
-                tol,
-                findings,
-                checks,
-            )
-            _compare_numeric(
-                f"region:{reg}",
-                "GrossMargin",
-                _get_field(actual_reg, "GrossMargin"),
-                expected_reg.gross_margin,
-                tol,
-                findings,
-                checks,
-            )
-            _compare_numeric(
-                f"region:{reg}",
-                "BudgetRevenue",
-                _get_field(actual_reg, "BudgetRevenue"),
-                expected_reg.total_budget,
-                tol,
-                findings,
-                checks,
-            )
-
-    if (
-        gt.overall.gross_revenue is not None
-        and gt.overall.active_customers is not None
-        and gt.overall.revenue_per_customer is not None
-    ):
-        cd_res = adomd_adapter.execute_dax(
-            target_port, CUSTOMER_DISCOUNT_DAX_QUERY, config, repo_root, database=target_db
-        )
-        if not cd_res.ok or not cd_res.rows:
+        if not res.ok:
             findings.append(
                 GateFinding(
                     severity="error",
-                    code="G4_CUSTOMER_DISCOUNT_QUERY_FAILED",
-                    message=cd_res.error or "Customer & discount DAX query failed.",
+                    code="G4_GROUPED_QUERY_FAILED",
+                    message=res.error or f"Grouped DAX query '{gq.name}' failed.",
                 )
             )
-        else:
-            cd_row = cd_res.rows[0]
-            cd_pairs = [
-                ("GrossRevenue", gt.overall.gross_revenue, tol),
-                ("DiscountRatePct", gt.overall.discount_rate_pct, 0.0005),
-                ("ActiveCustomers", float(gt.overall.active_customers), 0.0),
-                ("RevenuePerCustomer", gt.overall.revenue_per_customer, tol),
-            ]
-            for field_name, expected_val, field_tol in cd_pairs:
+            continue
+
+        gt_map = gt.resolve(gq.ground_truth_map_path)
+        if not isinstance(gt_map, (dict, GroundTruthNode)):
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_MISSING_EXPECTED",
+                    message=(
+                        f"[{gq.scope_prefix}] Ground-truth map '{gq.ground_truth_map_path}' "
+                        "not found or not a mapping."
+                    ),
+                )
+            )
+            continue
+
+        group_cols = [gq.group_column, *gq.group_aliases]
+        rows_by_group: dict[str, dict[str, Any]] = {}
+        for row in res.rows:
+            gval = _get_field(row, *group_cols)
+            if gval is not None:
+                rows_by_group[str(gval)] = row
+
+        for group_key, expected_entry in gt_map.items():
+            actual_row = rows_by_group.get(str(group_key))
+            if actual_row is None:
+                findings.append(
+                    GateFinding(
+                        severity="error",
+                        code="G4_MISSING_GROUP",
+                        message=(
+                            f"[{gq.scope_prefix}] Group '{group_key}' missing from "
+                            f"SUMMARIZECOLUMNS output for '{gq.name}'."
+                        ),
+                    )
+                )
+                continue
+
+            for metric in gq.metrics:
+                exp_val = resolve_dot_path(expected_entry, metric.expected_field)
+                if exp_val is None:
+                    if metric.optional:
+                        continue
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G4_MISSING_EXPECTED",
+                            message=(
+                                f"[{gq.scope_prefix}:{group_key}] Missing expected field "
+                                f"'{metric.expected_field}' for '{metric.alias}'."
+                            ),
+                        )
+                    )
+                    continue
+
+                field_tol = metric.tolerance if metric.tolerance is not None else tol
                 _compare_numeric(
-                    "overall",
-                    field_name,
-                    _get_field(cd_row, field_name),
-                    expected_val,
+                    f"{gq.scope_prefix}:{group_key}",
+                    metric.alias,
+                    _get_field(actual_row, metric.alias),
+                    float(exp_val),
                     field_tol,
                     findings,
                     checks,
                 )
 
-            if overall_res.ok and overall_res.rows:
-                act_rev_raw = _get_field(overall_res.rows[0], "TotalRevenue")
-                act_disc_raw = _get_field(overall_res.rows[0], "TotalDiscount")
-                act_gross_raw = _get_field(cd_row, "GrossRevenue")
-                if (
-                    act_rev_raw is not None
-                    and act_disc_raw is not None
-                    and act_gross_raw is not None
-                ):
-                    act_rev = float(act_rev_raw)
-                    act_gross_minus_disc = float(act_gross_raw) - float(act_disc_raw)
-                    id_diff = abs(act_rev - act_gross_minus_disc)
-                    id_ok = id_diff <= tol
-                    checks.append(
-                        {
-                            "scope": "audit",
-                            "metric": "AccountingIdentity_NetEqGrossMinusDiscount",
-                            "expected": round(act_gross_minus_disc, 6),
-                            "actual": round(act_rev, 6),
-                            "diff": round(id_diff, 6),
-                            "status": "PASS" if id_ok else "FAIL",
-                        }
-                    )
-                    if not id_ok:
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G4_ACCOUNTING_IDENTITY_MISMATCH",
-                                message=(
-                                    f"[audit] Accounting identity failed: TotalRevenue={act_rev} "
-                                    f"!= GrossRevenue-TotalDiscount={act_gross_minus_disc:.2f} "
-                                    f"(diff={id_diff:.4f} > tolerance={tol})"
-                                ),
-                            )
-                        )
-
-    cg_res = adomd_adapter.execute_dax(
-        target_port, CROSS_GRAIN_BUDGET_QUERY, config, repo_root, database=target_db
-    )
-    if not cg_res.ok or not cg_res.rows:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_CROSS_GRAIN_QUERY_FAILED",
-                message=cg_res.error or "Cross-grain budget guard DAX query failed.",
-            )
+    for ident in effective_spec.accounting_identities:
+        lhs_val = scalar_actuals.get(ident.lhs_alias)
+        if lhs_val is None or any(t.alias not in scalar_actuals for t in ident.rhs_terms):
+            continue
+        rhs_val = sum(t.sign * scalar_actuals[t.alias] for t in ident.rhs_terms)
+        id_tol = ident.tolerance if ident.tolerance is not None else tol
+        id_diff = abs(lhs_val - rhs_val)
+        id_ok = id_diff <= id_tol
+        checks.append(
+            {
+                "scope": "audit",
+                "metric": ident.name,
+                "expected": round(rhs_val, 6),
+                "actual": round(lhs_val, 6),
+                "diff": round(id_diff, 6),
+                "status": "PASS" if id_ok else "FAIL",
+            }
         )
-    else:
+        if not id_ok:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_ACCOUNTING_IDENTITY_MISMATCH",
+                    message=(
+                        f"[audit] Accounting identity '{ident.name}' failed: "
+                        f"{ident.lhs_alias}={lhs_val} != rhs={rhs_val:.2f} "
+                        f"(diff={id_diff:.4f} > tolerance={id_tol})"
+                    ),
+                )
+            )
+
+    for cg in effective_spec.cross_grain_blank_checks:
+        cg_res = adomd_adapter.execute_dax(
+            target_port, cg.dax, config, repo_root, database=target_db
+        )
+        if not cg_res.ok or not cg_res.rows:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_CROSS_GRAIN_QUERY_FAILED",
+                    message=cg_res.error or f"Cross-grain blank check '{cg.name}' failed.",
+                )
+            )
+            continue
         cg_row = cg_res.rows[0]
-        for field_name in (
-            "BudgetByProduct",
-            "BudgetByCustomer",
-            "BudgetBySalesRep",
-            "VarianceByProduct",
-        ):
-            val = _get_field(cg_row, field_name)
+        for alias in cg.expected_blank_aliases:
+            val = _get_field(cg_row, alias)
             is_blank = val is None
             checks.append(
                 {
-                    "scope": "cross_grain",
-                    "metric": field_name,
+                    "scope": cg.scope,
+                    "metric": alias,
                     "expected": None,
                     "actual": val,
                     "diff": 0.0 if is_blank else None,
@@ -496,263 +479,288 @@ def run_gate_g4(
                         severity="error",
                         code="G4_CROSS_GRAIN_BUDGET_LEAK",
                         message=(
-                            f"[cross_grain] '{field_name}' returned {val} instead of BLANK() "
+                            f"[{cg.scope}] '{alias}' returned {val} instead of BLANK() "
                             "when sliced by non-conforming dimension."
                         ),
                     )
                 )
 
-    na_res = adomd_adapter.execute_dax(
-        target_port, NO_ACTUALS_GUARD_QUERY, config, repo_root, database=target_db
-    )
-    if not na_res.ok or not na_res.rows:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_NO_ACTUALS_QUERY_FAILED",
-                message=na_res.error or "No-actuals guard DAX query failed.",
-            )
+    for eg in effective_spec.empty_context_guards:
+        eg_res = adomd_adapter.execute_dax(
+            target_port, eg.dax, config, repo_root, database=target_db
         )
-    else:
-        na_row = na_res.rows[0]
-        _compare_numeric(
-            "no_actuals",
-            "NoActualsBudget",
-            _get_field(na_row, "NoActualsBudget"),
-            gt.overall.total_budget,
-            tol,
-            findings,
-            checks,
-        )
-        na_var = _get_field(na_row, "NoActualsVariance")
-        na_var_ok = na_var is None
-        checks.append(
-            {
-                "scope": "no_actuals",
-                "metric": "NoActualsVarianceIsBlank",
-                "expected": None,
-                "actual": na_var,
-                "diff": 0.0 if na_var_ok else None,
-                "status": "PASS" if na_var_ok else "FAIL",
-            }
-        )
-        if not na_var_ok:
+        if not eg_res.ok or not eg_res.rows:
             findings.append(
                 GateFinding(
                     severity="error",
-                    code="G4_NO_ACTUALS_VARIANCE_NOT_BLANK",
-                    message=(
-                        f"[no_actuals] Budget Variance returned {na_var} instead of BLANK() "
-                        "when FactSales has no rows."
-                    ),
+                    code="G4_EMPTY_CONTEXT_QUERY_FAILED",
+                    message=eg_res.error or f"Empty-context guard '{eg.name}' failed.",
                 )
             )
+            continue
+        eg_row = eg_res.rows[0]
 
-        expected_no_act = (
-            gt.finance_guards.expected_no_actuals_status
-            if gt.finance_guards is not None
-            else "No Actuals"
-        )
-        na_status = _get_field(na_row, "NoActualsStatus")
-        na_status_ok = na_status == expected_no_act
-        checks.append(
-            {
-                "scope": "no_actuals",
-                "metric": "NoActualsStatus",
-                "expected": expected_no_act,
-                "actual": na_status,
-                "diff": 0.0 if na_status_ok else None,
-                "status": "PASS" if na_status_ok else "FAIL",
-            }
-        )
-        if not na_status_ok:
-            findings.append(
-                GateFinding(
-                    severity="error",
-                    code="G4_NO_ACTUALS_STATUS_MISMATCH",
-                    message=(
-                        f"[no_actuals] Budget Attainment Status returned '{na_status}' "
-                        f"(expected '{expected_no_act}')."
-                    ),
-                )
-            )
-
-        expected_no_bud = (
-            gt.finance_guards.expected_no_budget_status
-            if gt.finance_guards is not None
-            else "No Budget"
-        )
-        nb_status = _get_field(na_row, "NoBudgetStatus")
-        nb_status_ok = nb_status == expected_no_bud
-        checks.append(
-            {
-                "scope": "cross_grain",
-                "metric": "NoBudgetStatus",
-                "expected": expected_no_bud,
-                "actual": nb_status,
-                "diff": 0.0 if nb_status_ok else None,
-                "status": "PASS" if nb_status_ok else "FAIL",
-            }
-        )
-        if not nb_status_ok:
-            findings.append(
-                GateFinding(
-                    severity="error",
-                    code="G4_NO_BUDGET_STATUS_MISMATCH",
-                    message=(
-                        f"[cross_grain] Budget Attainment Status returned '{nb_status}' "
-                        f"(expected '{expected_no_bud}')."
-                    ),
-                )
-            )
-
-    future_period_meta: dict[str, Any] = {"status": "SKIP"}
-    fp_res = adomd_adapter.execute_dax(
-        target_port, FUTURE_PERIOD_CHECK_QUERY, config, repo_root, database=target_db
-    )
-    if not fp_res.ok or not fp_res.rows:
-        findings.append(
-            GateFinding(
-                severity="error",
-                code="G4_FUTURE_PERIOD_QUERY_FAILED",
-                message=fp_res.error or "Future-period date range query failed.",
-            )
-        )
-        future_period_meta = {"status": "FAIL", "error": fp_res.error}
-    else:
-        fp_row = fp_res.rows[0]
-        max_dk_raw = _get_field(fp_row, "MaxDateKey")
-        max_sales_raw = _get_field(fp_row, "MaxSalesDateKey")
-        max_dk = int(float(max_dk_raw)) if max_dk_raw is not None else 0
-        max_sales_dk = int(float(max_sales_raw)) if max_sales_raw is not None else 0
-        if max_dk <= max_sales_dk:
-            reason = (
-                f"DimDate max DateKey ({max_dk}) has no dates beyond MAX('FactSales'[DateKey]) "
-                f"({max_sales_dk}); future-month budget/time-intelligence check skipped (N/A)."
-            )
-            future_period_meta = {
-                "status": "SKIP",
-                "max_date_key": max_dk,
-                "max_sales_date_key": max_sales_dk,
-                "reason": reason,
-            }
-            findings.append(
-                GateFinding(
-                    severity="info",
-                    code="G4_FUTURE_PERIOD_CHECK_SKIPPED",
-                    message=reason,
-                )
-            )
-            checks.append(
-                {
-                    "scope": "future_period",
-                    "metric": "FuturePeriodBudgetAndTimeIntel",
-                    "expected": "N/A",
-                    "actual": None,
-                    "diff": None,
-                    "status": "SKIP",
-                }
-            )
-        else:
-            future_vals_query = (
-                "EVALUATE\n"
-                "ROW(\n"
-                '    "FutureBudget", CALCULATE([Budget Revenue], '
-                f"'DimDate'[DateKey] > {max_sales_dk}),\n"
-                '    "FutureVariance", CALCULATE([Budget Variance], '
-                f"'DimDate'[DateKey] > {max_sales_dk}),\n"
-                '    "FutureStatus", CALCULATE([Budget Attainment Status], '
-                f"'DimDate'[DateKey] > {max_sales_dk}),\n"
-                '    "FutureYTD", CALCULATE([Revenue YTD], '
-                f"'DimDate'[DateKey] > {max_sales_dk}),\n"
-                '    "FutureRolling3M", CALCULATE([Revenue Rolling 3M], '
-                f"'DimDate'[DateKey] > {max_sales_dk})\n"
-                ")"
-            )
-            fv_res = adomd_adapter.execute_dax(
-                target_port, future_vals_query, config, repo_root, database=target_db
-            )
-            if not fv_res.ok or not fv_res.rows:
+        for num_assert in eg.numeric_assertions:
+            expected_raw = num_assert.expected_value
+            if expected_raw is None and num_assert.expected_path:
+                expected_raw = gt.resolve(num_assert.expected_path)
+            if expected_raw is None:
+                if num_assert.optional:
+                    continue
                 findings.append(
                     GateFinding(
                         severity="error",
-                        code="G4_FUTURE_PERIOD_QUERY_FAILED",
-                        message=fv_res.error or "Future-period values query failed.",
+                        code="G4_MISSING_EXPECTED",
+                        message=(
+                            f"[{eg.scope}] Missing expected ground-truth value for "
+                            f"'{num_assert.alias}'."
+                        ),
                     )
                 )
-                future_period_meta = {"status": "FAIL", "error": fv_res.error}
-            else:
-                fv_row = fv_res.rows[0]
-                future_period_meta = {
-                    "status": "PASS",
-                    "max_date_key": max_dk,
-                    "max_sales_date_key": max_sales_dk,
+                continue
+            field_tol = num_assert.tolerance if num_assert.tolerance is not None else tol
+            _compare_numeric(
+                eg.scope,
+                num_assert.alias,
+                _get_field(eg_row, num_assert.alias),
+                float(expected_raw),
+                field_tol,
+                findings,
+                checks,
+            )
+
+        for blank_alias in eg.expected_blank_aliases:
+            b_val = _get_field(eg_row, blank_alias)
+            b_ok = b_val is None
+            checks.append(
+                {
+                    "scope": eg.scope,
+                    "metric": f"{blank_alias}IsBlank",
+                    "expected": None,
+                    "actual": b_val,
+                    "diff": 0.0 if b_ok else None,
+                    "status": "PASS" if b_ok else "FAIL",
                 }
-                for blank_metric in ("FutureVariance", "FutureYTD", "FutureRolling3M"):
-                    f_val = _get_field(fv_row, blank_metric)
-                    f_ok = f_val is None
-                    checks.append(
-                        {
-                            "scope": "future_period",
-                            "metric": blank_metric,
-                            "expected": None,
-                            "actual": f_val,
-                            "diff": 0.0 if f_ok else None,
-                            "status": "PASS" if f_ok else "FAIL",
-                        }
+            )
+            if not b_ok:
+                findings.append(
+                    GateFinding(
+                        severity="error",
+                        code="G4_EMPTY_CONTEXT_NOT_BLANK",
+                        message=(
+                            f"[{eg.scope}] '{blank_alias}' returned {b_val} instead of BLANK() "
+                            "in empty actuals context."
+                        ),
                     )
-                    if not f_ok:
-                        future_period_meta["status"] = "FAIL"
+                )
+
+        for str_assert in eg.string_assertions:
+            expected_str: Any = None
+            if str_assert.expected_path:
+                expected_str = gt.resolve(str_assert.expected_path)
+            if expected_str is None:
+                expected_str = str_assert.expected_value
+            actual_str = _get_field(eg_row, str_assert.alias)
+            str_ok = actual_str == expected_str
+            checks.append(
+                {
+                    "scope": str_assert.scope or eg.scope,
+                    "metric": str_assert.alias,
+                    "expected": expected_str,
+                    "actual": actual_str,
+                    "diff": 0.0 if str_ok else None,
+                    "status": "PASS" if str_ok else "FAIL",
+                }
+            )
+            if not str_ok:
+                findings.append(
+                    GateFinding(
+                        severity="error",
+                        code="G4_NO_ACTUALS_STATUS_MISMATCH",
+                        message=(
+                            f"[{str_assert.scope or eg.scope}] '{str_assert.alias}' returned "
+                            f"'{actual_str}' (expected '{expected_str}')."
+                        ),
+                    )
+                )
+
+    future_period_meta: dict[str, Any] = {"status": "SKIP"}
+    fp_spec = effective_spec.future_period_check
+    if fp_spec is not None:
+        fp_probe_query = (
+            "EVALUATE\n"
+            "ROW(\n"
+            '    "MaxDateKey", '
+            f"CALCULATE(MAX({fp_spec.date_table_column}), REMOVEFILTERS()),\n"
+            '    "MaxActualsDateKey", '
+            f"CALCULATE(MAX({fp_spec.actuals_date_column}), REMOVEFILTERS())\n"
+            ")"
+        )
+        fp_res = adomd_adapter.execute_dax(
+            target_port, fp_probe_query, config, repo_root, database=target_db
+        )
+        if not fp_res.ok or not fp_res.rows:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G4_FUTURE_PERIOD_QUERY_FAILED",
+                    message=fp_res.error or "Future-period date range query failed.",
+                )
+            )
+            future_period_meta = {"status": "FAIL", "error": fp_res.error}
+        else:
+            fp_row = fp_res.rows[0]
+            max_dk_raw = _get_field(fp_row, "MaxDateKey")
+            max_actuals_raw = _extract_secondary_date_marker(fp_row)
+            max_dk_comp, _ = _parse_comparable_date_marker(max_dk_raw)
+            max_actuals_comp, filter_lit = _parse_comparable_date_marker(max_actuals_raw)
+            if max_dk_comp <= max_actuals_comp:
+                reason = (
+                    f"{fp_spec.date_table_column} max ({max_dk_raw}) has no dates beyond "
+                    f"MAX({fp_spec.actuals_date_column}) ({max_actuals_raw}); "
+                    "future-period check skipped (N/A)."
+                )
+                future_period_meta = {
+                    "status": "FAIL" if fp_spec.require_active else "SKIP",
+                    "max_date_marker": max_dk_raw,
+                    "max_actuals_marker": max_actuals_raw,
+                    "reason": reason,
+                }
+                if fp_spec.require_active:
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G4_FUTURE_PERIOD_REQUIRED",
+                            message=reason,
+                        )
+                    )
+                else:
+                    findings.append(
+                        GateFinding(
+                            severity="info",
+                            code="G4_FUTURE_PERIOD_CHECK_SKIPPED",
+                            message=reason,
+                        )
+                    )
+                checks.append(
+                    {
+                        "scope": "future_period",
+                        "metric": "FuturePeriodCheck",
+                        "expected": "Active" if fp_spec.require_active else "N/A",
+                        "actual": None,
+                        "diff": None,
+                        "status": "FAIL" if fp_spec.require_active else "SKIP",
+                    }
+                )
+            else:
+                row_items: list[str] = []
+                for alias, expr in fp_spec.must_be_blank_measures.items():
+                    row_items.append(
+                        f'    "{alias}", '
+                        f"CALCULATE({expr}, {fp_spec.date_table_column} > {filter_lit})"
+                    )
+                if fp_spec.budget_measure:
+                    row_items.append(
+                        f'    "FutureBudget", CALCULATE({fp_spec.budget_measure}, '
+                        f"{fp_spec.date_table_column} > {filter_lit})"
+                    )
+                if fp_spec.status_measure:
+                    row_items.append(
+                        f'    "FutureStatus", CALCULATE({fp_spec.status_measure}, '
+                        f"{fp_spec.date_table_column} > {filter_lit})"
+                    )
+                if row_items:
+                    future_vals_query = "EVALUATE\nROW(\n" + ",\n".join(row_items) + "\n)"
+                    fv_res = adomd_adapter.execute_dax(
+                        target_port, future_vals_query, config, repo_root, database=target_db
+                    )
+                    if not fv_res.ok or not fv_res.rows:
                         findings.append(
                             GateFinding(
                                 severity="error",
-                                code="G4_FUTURE_PERIOD_NOT_BLANK",
-                                message=(
-                                    f"[future_period] '{blank_metric}' returned {f_val} "
-                                    "beyond MAX('FactSales'[DateKey])."
-                                ),
+                                code="G4_FUTURE_PERIOD_QUERY_FAILED",
+                                message=fv_res.error or "Future-period values query failed.",
                             )
                         )
-                if _get_field(fv_row, "FutureBudget") is not None:
-                    fs_val = _get_field(fv_row, "FutureStatus")
-                    fs_ok = fs_val == "No Actuals"
-                    checks.append(
-                        {
-                            "scope": "future_period",
-                            "metric": "FutureStatus",
-                            "expected": "No Actuals",
-                            "actual": fs_val,
-                            "diff": 0.0 if fs_ok else None,
-                            "status": "PASS" if fs_ok else "FAIL",
+                        future_period_meta = {"status": "FAIL", "error": fv_res.error}
+                    else:
+                        fv_row = fv_res.rows[0]
+                        future_period_meta = {
+                            "status": "PASS",
+                            "max_date_marker": max_dk_raw,
+                            "max_actuals_marker": max_actuals_raw,
                         }
-                    )
-                    if not fs_ok:
-                        future_period_meta["status"] = "FAIL"
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G4_NO_ACTUALS_STATUS_MISMATCH",
-                                message=(
-                                    f"[future_period] Budget Attainment Status returned "
-                                    f"'{fs_val}' (expected 'No Actuals')."
-                                ),
+                        for blank_alias in fp_spec.must_be_blank_measures:
+                            f_val = _get_field(fv_row, blank_alias)
+                            f_ok = f_val is None
+                            checks.append(
+                                {
+                                    "scope": "future_period",
+                                    "metric": blank_alias,
+                                    "expected": None,
+                                    "actual": f_val,
+                                    "diff": 0.0 if f_ok else None,
+                                    "status": "PASS" if f_ok else "FAIL",
+                                }
                             )
-                        )
+                            if not f_ok:
+                                future_period_meta["status"] = "FAIL"
+                                findings.append(
+                                    GateFinding(
+                                        severity="error",
+                                        code="G4_FUTURE_PERIOD_NOT_BLANK",
+                                        message=(
+                                            f"[future_period] '{blank_alias}' returned {f_val} "
+                                            f"beyond MAX({fp_spec.actuals_date_column})."
+                                        ),
+                                    )
+                                )
+                        if (
+                            fp_spec.budget_measure
+                            and fp_spec.status_measure
+                            and _get_field(fv_row, "FutureBudget") is not None
+                        ):
+                            fs_val = _get_field(fv_row, "FutureStatus")
+                            fs_ok = fs_val == fp_spec.expected_future_status
+                            checks.append(
+                                {
+                                    "scope": "future_period",
+                                    "metric": "FutureStatus",
+                                    "expected": fp_spec.expected_future_status,
+                                    "actual": fs_val,
+                                    "diff": 0.0 if fs_ok else None,
+                                    "status": "PASS" if fs_ok else "FAIL",
+                                }
+                            )
+                            if not fs_ok:
+                                future_period_meta["status"] = "FAIL"
+                                findings.append(
+                                    GateFinding(
+                                        severity="error",
+                                        code="G4_NO_ACTUALS_STATUS_MISMATCH",
+                                        message=(
+                                            f"[future_period] '{fp_spec.status_measure}' "
+                                            f"returned '{fs_val}' "
+                                            f"(expected '{fp_spec.expected_future_status}')."
+                                        ),
+                                    )
+                                )
 
     assertions_checked = sum(1 for c in checks if c.get("status") in ("PASS", "FAIL"))
 
+    benchmark_dax = _resolve_benchmark_dax(effective_spec)
     perf_metrics: dict[str, Any] = {
-        "benchmark_skipped": skip_benchmark,
-        "cold_budget_ms": config.gates.perf_budget_cold_ms,
-        "warm_budget_ms": config.gates.perf_budget_warm_ms,
+        "benchmark_skipped": skip_benchmark or not benchmark_dax,
+        "cold_budget_ms": cold_budget_ms,
+        "warm_budget_ms": warm_budget_ms,
     }
     artifacts: list[str] = []
-    if not skip_benchmark and target_db:
+    if not skip_benchmark and target_db and benchmark_dax:
         run_dir = output_dir or (repo_root / "artifacts" / "runs" / "ad-hoc")
         run_dir.mkdir(parents=True, exist_ok=True)
         dax_file = run_dir / "benchmark_query.dax"
         csv_file = run_dir / "benchmark_results.csv"
-        dax_file.write_text(BENCHMARK_DAX, encoding="utf-8")
+        dax_file.write_text(benchmark_dax, encoding="utf-8")
         bench = dax_studio_adapter.run_benchmark(
             f"localhost:{target_port}", target_db, dax_file, csv_file, config
         )
@@ -771,31 +779,25 @@ def run_gate_g4(
                 )
             )
         else:
-            if (
-                bench.cold_avg_ms is not None
-                and bench.cold_avg_ms > config.gates.perf_budget_cold_ms
-            ):
+            if bench.cold_avg_ms is not None and bench.cold_avg_ms > cold_budget_ms:
                 findings.append(
                     GateFinding(
                         severity="error",
                         code="G4_COLD_BUDGET_EXCEEDED",
                         message=(
                             f"Cold cache avg {bench.cold_avg_ms:.1f}ms > "
-                            f"budget {config.gates.perf_budget_cold_ms}ms"
+                            f"budget {cold_budget_ms}ms"
                         ),
                     )
                 )
-            if (
-                bench.warm_avg_ms is not None
-                and bench.warm_avg_ms > config.gates.perf_budget_warm_ms
-            ):
+            if bench.warm_avg_ms is not None and bench.warm_avg_ms > warm_budget_ms:
                 findings.append(
                     GateFinding(
                         severity="error",
                         code="G4_WARM_BUDGET_EXCEEDED",
                         message=(
                             f"Warm cache avg {bench.warm_avg_ms:.1f}ms > "
-                            f"budget {config.gates.perf_budget_warm_ms}ms"
+                            f"budget {warm_budget_ms}ms"
                         ),
                     )
                 )

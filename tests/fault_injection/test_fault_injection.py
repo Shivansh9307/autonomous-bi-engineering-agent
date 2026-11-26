@@ -1,7 +1,8 @@
-"""Fail-closed fault-injection suite verifying hooks and Gates G1..G7 catch injected defects."""
+"""Fail-closed fault-injection suite verifying hooks and Gates G0..G7 catch injected defects."""
 
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ from bi_agent.adapters.adomd_adapter import DaxQueryResult
 from bi_agent.adapters.dax_studio_adapter import BenchmarkResult
 from bi_agent.config import ToolchainConfig, find_repo_root
 from bi_agent.gates import (
+    run_gate_g0,
     run_gate_g1,
     run_gate_g2,
     run_gate_g3,
@@ -543,3 +545,168 @@ def test_fi09_rls_cross_fact_budget_leak_caught_offline_and_live(
     )
     assert live_res.status == "FAIL"
     assert any(f.code == "G5_CROSS_FACT_LEAK" for f in live_res.findings)
+
+
+def test_fi10_g0_catches_silent_row_drop_amount_drift_and_orphan_fk(tmp_path: Path) -> None:
+    """Catch silent row drop, amount drift, dirty staged cell, orphan FK, unresolved policy."""
+    raw_dir = tmp_path / "raw"
+    staged_dir = tmp_path / "staged"
+    raw_dir.mkdir()
+    staged_dir.mkdir()
+
+    with (raw_dir / "orders.csv").open("w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["OrderID", "OrderDate", "VendorID", "Amount"])
+        w.writerow(["O1", "2026-01-05", "V1", "$100.00"])
+        w.writerow(["O2", "01/15/2026", "V9", "$500.00"])
+        w.writerow(["O3", "2026-01-20", "V1", "50.00"])
+
+    # Broken staged: silently drops O3 (no quarantine), drifts Amount, keeps dirty "$500.00",
+    # leaves non-ISO date, and introduces an orphan FK ("V9")
+    with (staged_dir / "FactOrders.csv").open("w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["OrderID", "OrderDate", "VendorID", "Amount"])
+        w.writerow(["O1", "2026-01-05", "V1", "90.00"])
+        w.writerow(["O2", "01/15/2026", "V9", "$500.00"])
+
+    with (staged_dir / "DimVendor.csv").open("w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["VendorID", "Name"])
+        w.writerow(["V1", "Acme"])
+
+    req_path = tmp_path / "REQ-FI10.yaml"
+    req_path.write_text(
+        """id: REQ-FI10
+title: G0 Fault Injection
+owner: QA
+status: draft
+target_pbip: pbi/Demo
+data_profiling:
+  enabled: true
+  raw_dir: raw
+  staged_dir: staged
+  policy_decisions: {}
+  tables:
+    - name: FactOrders
+      raw_file: raw/orders.csv
+      staged_file: staged/FactOrders.csv
+      business_keys: [OrderID]
+      date_columns: [OrderDate]
+      reconcile_amount_columns: [Amount]
+      foreign_keys:
+        - column: VendorID
+          target_table: DimVendor
+          target_column: VendorID
+          target_file: staged/DimVendor.csv
+star_schema:
+  facts:
+    - name: FactOrders
+      grain: Order
+      source: staged/FactOrders.csv
+  dimensions:
+    - name: DimVendor
+      key: VendorID
+      source: staged/DimVendor.csv
+  relationships:
+    - "FactOrders[VendorID] -> DimVendor[VendorID] (*:1, Single)"
+measures:
+  display_table: _Measures
+  kpis:
+    - name: Total Spend
+      folder: "01 Spend"
+      format: "$#,##0.00"
+""",
+        encoding="utf-8",
+    )
+
+    res = run_gate_g0(req_path, tmp_path, output_dir=tmp_path / "out")
+    assert res.status == "FAIL"
+    codes = {f.code for f in res.findings}
+    assert {
+        "G0_UNRESOLVED_POLICY",
+        "G0_ROW_RECON_MISMATCH",
+        "G0_AMOUNT_RECON_MISMATCH",
+        "G0_STAGED_DEFECT_REMAINING",
+        "G0_ORPHAN_FK",
+    }.issubset(codes)
+
+
+def test_fi11_v2_contract_and_multi_project_fail_closed(tmp_path: Path) -> None:
+    """Verify G4 empty-contract rejection, G6 page/visual checks, and discover_pbid fail-closed."""
+    repo_root = find_repo_root(Path(__file__).resolve())
+    gt_path = tmp_path / "gt.json"
+    gt_path.write_text('{"overall": {"x": 1}}', encoding="utf-8")
+
+    # (a) Requirement with empty verification.dax_checks -> G4_CONTRACT_MISSING
+    empty_req = tmp_path / "REQ-EMPTY-DAX.yaml"
+    empty_req.write_text(
+        """id: REQ-EMPTY-DAX
+title: Empty DAX Contract
+owner: QA
+status: draft
+target_pbip: pbi/EnterpriseSales
+star_schema:
+  facts: []
+  dimensions: []
+  relationships: []
+measures:
+  display_table: _Measures
+  kpis: []
+""",
+        encoding="utf-8",
+    )
+    g4_res = run_gate_g4(
+        gt_path,
+        ToolchainConfig(),
+        tmp_path,
+        port=55555,
+        database="DB",
+        skip_benchmark=True,
+        requirement_path=empty_req,
+    )
+    assert g4_res.status == "FAIL"
+    assert any(f.code == "G4_CONTRACT_MISSING" for f in g4_res.findings)
+
+    # (b) Requirement expecting missing page + high min visuals -> G6 fails even if PBIR ok
+    proj = _copy_pbip(repo_root, tmp_path)
+    bad_rep_req = tmp_path / "REQ-BAD-PAGES.yaml"
+    bad_rep_req.write_text(
+        """id: REQ-BAD-PAGES
+title: Missing Report Pages
+owner: QA
+status: draft
+target_pbip: pbi/EnterpriseSales
+star_schema:
+  facts: []
+  dimensions: []
+  relationships: []
+measures:
+  display_table: _Measures
+  kpis: []
+verification:
+  report_checks:
+    expected_pages: ["Nonexistent Executive Page"]
+    min_visuals_per_page: 999
+""",
+        encoding="utf-8",
+    )
+    g6_res = run_gate_g6(
+        proj, ToolchainConfig(), repo_root, offline=True, requirement_path=bad_rep_req
+    )
+    assert g6_res.status == "FAIL"
+    assert {"G6_EXPECTED_PAGE_MISSING", "G6_PAGE_VISUAL_COUNT_LOW"}.issubset(
+        {f.code for f in g6_res.findings}
+    )
+
+    # (c) Multi-project Desktop discovery must fail closed when -ReportName matches nothing
+    pwsh_exe = shutil.which("pwsh") or shutil.which("powershell")
+    assert pwsh_exe is not None
+    script = repo_root / "scripts" / "pbid" / "discover_pbid_port.ps1"
+    proc = subprocess.run(
+        [pwsh_exe, "-NoProfile", "-File", str(script), "-ReportName", "NonExistentProjectXYZ"],
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(proc.stdout)
+    assert payload["ok"] is False
+    assert payload["selected"] is None

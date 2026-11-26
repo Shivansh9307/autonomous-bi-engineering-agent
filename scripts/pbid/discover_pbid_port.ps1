@@ -108,6 +108,18 @@ try {
         }
 
         $desktopInfo = if ($null -ne $parentPid -and $desktopByPid.ContainsKey($parentPid)) { $desktopByPid[$parentPid] } else { $null }
+        $windowTitle = $null
+        if ($null -ne $parentPid) {
+            try {
+                $parentProc = Get-Process -Id $parentPid -ErrorAction SilentlyContinue
+                if ($parentProc -and $parentProc.MainWindowTitle) {
+                    $windowTitle = [string]$parentProc.MainWindowTitle
+                }
+            }
+            catch {
+                $windowTitle = $null
+            }
+        }
         $openTarget = $null
         if ($desktopInfo) {
             if ($desktopInfo.PSObject.Properties["reportPath"]) { $openTarget = [string]$desktopInfo.reportPath }
@@ -141,31 +153,42 @@ try {
             database = $dbName
             database_count = $dbCount
             open_target = $openTarget
+            window_title = $windowTitle
         }
     }
 
     $selected = $null
+    $selectionError = $null
     if ($instances.Count -gt 0) {
         if ($ReportName) {
             $needle = $ReportName.ToLowerInvariant()
             $selected = $instances | Where-Object {
                 ($_.open_target -and $_.open_target.ToLowerInvariant().Contains($needle)) -or
-                ($_.database -and $_.database.ToLowerInvariant().Contains($needle))
+                ($_.database -and $_.database.ToLowerInvariant().Contains($needle)) -or
+                ($_.window_title -and $_.window_title.ToLowerInvariant().Contains($needle))
             } | Select-Object -First 1
+            if (-not $selected) {
+                $discoveredList = ($instances | ForEach-Object { "$($_.database) ($($_.window_title))" }) -join ", "
+                $selectionError = "No active Power BI Desktop instance matched ReportName '$ReportName'. Discovered: $discoveredList"
+            }
         }
-        if (-not $selected) {
+        else {
             $selected = $instances | Select-Object -First 1
         }
     }
+    else {
+        $selectionError = "No active Power BI Desktop Analysis Services model instances found."
+    }
 
+    $ok = ($instances.Count -gt 0) -and ($null -ne $selected)
     $result = [PSCustomObject]@{
-        ok = ($instances.Count -gt 0)
+        ok = $ok
         instances = @($instances)
         selected = $selected
-        error = if ($instances.Count -eq 0) { "No active Power BI Desktop Analysis Services model instances found." } else { $null }
+        error = if ($ok) { $null } else { $selectionError }
     }
     $result | ConvertTo-Json -Depth 6
-    if ($instances.Count -eq 0) { exit 1 }
+    if (-not $ok) { exit 1 }
     exit 0
 }
 catch {

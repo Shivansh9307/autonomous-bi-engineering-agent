@@ -1,12 +1,13 @@
 # Operations, Verification Matrix & CLI Reference
 
-This guide holds the operational reference, 7-gate specification, model inventory, finance safeguards, CI guardrails, and IP attribution for the **Autonomous BI Engineering Agent System**. For the executive overview and verified commercial insights, see [README.md](../README.md).
+This guide holds the operational reference, 8-gate specification, model inventory, finance safeguards, CI guardrails, and IP attribution for the **Autonomous BI Engineering Agent System**. For the executive overview and verified commercial insights, see [README.md](../README.md).
 
-## 7-Gate Verification Matrix
+## 8-Gate Verification Matrix
 
 | Gate | Name | Tooling & Checks | Pass Criteria | Mode |
 | :--- | :--- | :--- | :--- | :--- |
-| **G1** | Design Contract | `bi_agent.schemas` (Pydantic v2) | Valid `1:*` `Single` star schema, grain, KPI specs, and multi-fact fail-closed RLS coverage | CI & Local |
+| **G0** | Raw Data Profiling & Staging Reconciliation | `bi_agent.gates.g0_data_profiling` (`profile-data` / `verify-data`) | `0` unresolved policy questions; `raw == staged + quarantine`; `±0.01` Decimal financial conservation; clean ISO dates & FK integrity | CI & Local (`SKIP` when disabled) |
+| **G1** | Design Contract | `bi_agent.schemas` (Pydantic v2) | Valid `1:*` `Single` star schema, grain, KPI specs, declarative verification checks, and multi-fact fail-closed RLS coverage | CI & Local |
 | **G2** | PBIP & TMDL Structure | `validate_pbip.py` + `TabularEditor.exe` TMDL load | `0` PBIP errors and clean TE2 TMDL parse | CI & Local |
 | **G3** | BPA & VertiPaq Audit | `TabularEditor.exe -A config/bpa/enterprise-rules.json -G` + `dscmd vpax` | `0` BPA Error violations (`15` enterprise rules); VPAX telemetry exported when online | Offline BPA in CI; +VPAX Live |
 | **G4** | Live DAX Reconciliation & Perf | ADOMD.NET (`scripts/pbid/run_dax_impersonated.ps1`) + `dscmd benchmark` | `51` DAX assertions within `±0.01` (incl. accounting tie-out, cross-grain blank, no-actuals); cold `<=1500ms`, warm `<=500ms` | Live Desktop (`SKIP` in `--offline`) |
@@ -50,14 +51,18 @@ uv run python scripts/generate_sample_data.py
 # Toolchain diagnostics
 uv run bi-agent doctor [--json]
 
-# Individual gates
-uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
-uv run bi-agent verify-model [--offline]
-uv run bi-agent verify-dax
-uv run bi-agent verify-rls --requirement requirements/REQ-002-customer-discount-analytics.yaml
-uv run bi-agent verify-report [--offline]
+# Gate G0 messy flat-file profiling & raw-to-staged reconciliation
+uv run bi-agent profile-data <raw_path> [--req-id REQ-XXX] [--output-dir artifacts/runs/REQ-XXX]
+uv run bi-agent verify-data requirements/<REQ>.yaml [--json]
 
-# Full 7-gate evidence bundle (live Desktop or --offline for CI/headless)
+# Individual contract-driven gates
+uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
+uv run bi-agent verify-model [--requirement requirements/REQ-002-customer-discount-analytics.yaml] [--offline]
+uv run bi-agent verify-dax --requirement requirements/REQ-002-customer-discount-analytics.yaml
+uv run bi-agent verify-rls --requirement requirements/REQ-002-customer-discount-analytics.yaml [--offline]
+uv run bi-agent verify-report [--requirement requirements/REQ-002-customer-discount-analytics.yaml] [--offline]
+
+# Full 8-gate (G0-G7) evidence bundle (live Desktop or --offline for CI/headless)
 uv run bi-agent verify-all --req-id REQ-002 --requirement requirements/REQ-002-customer-discount-analytics.yaml [--offline]
 
 # Evidence-gated commit (requires staged tree SHA match in verification-report.json)
@@ -65,8 +70,8 @@ uv run bi-agent git-commit --evidence artifacts/runs/REQ-002/verification-report
 ```
 
 Multi-agent orchestration lives in [`workflows/bi_delivery/`](../workflows/bi_delivery/workflow.py) (`workflow.json` + `workflow.py`) with two modes:
-- `audit` (default): Runs Gate `G1` plus parallel specialist `research` auditors (`Model & DAX Hygiene Auditor` and `Report & Governance Auditor`) without mutating files.
-- `deliver`: Runs `G1`, model/RLS delivery, PBIR report delivery, parallel specialist audits, `G1`–`G7` verification, and optional `bi-agent git-commit`.
+- `audit` (default): Runs Gates `G0` + `G1` plus parallel specialist `research` auditors (`Model & DAX Hygiene Auditor` and `Report & Governance Auditor`) without mutating files.
+- `deliver`: Runs `G0` + `G1`, model/RLS delivery, PBIR report delivery, parallel specialist audits, `G0`–`G7` verification, and optional `bi-agent git-commit`.
 
 ## Testing, Guardrails & CI
 
@@ -83,10 +88,10 @@ uv run pytest tests/fault_injection -p no:cacheprovider -v
 
 | Layer | Paths | Provenance | Purpose |
 | :--- | :--- | :--- | :--- |
-| Verification Engine & CLI | [`src/bi_agent/`](../src/bi_agent/cli.py), [`scripts/`](../scripts/generate_sample_data.py) | **Authored IP** | Pydantic v2 contracts, 6 adapters, Gates `G1`–`G7`, PreToolUse/PostToolUse hooks, synthetic data + ground truth |
+| Verification Engine & CLI | [`src/bi_agent/`](../src/bi_agent/cli.py), [`scripts/`](../scripts/generate_sample_data.py) | **Authored IP** | Pydantic v2 contracts, domain-agnostic `GroundTruthDataset`, 6 adapters, Gates `G0`–`G7`, PreToolUse/PostToolUse hooks |
 | Multi-Agent Orchestrator | [`workflows/bi_delivery/`](../workflows/bi_delivery/workflow.py) | **Authored IP** | `run_workflow` staged `audit` and `deliver` pipeline with parallel specialist auditors |
 | Enterprise Governance & Rules | [`.agents/rules/`](../.agents/rules/bi-verification-gate.md), [`.agents/hooks.json`](../.agents/hooks.json), [`config/bpa/`](../config/bpa/enterprise-rules.json), [`.github/workflows/bi-ci.yml`](../.github/workflows/bi-ci.yml) | **Authored IP** | Tool cascade, PBIR CLI exclusivity, 15 CRLF TE2 BPA rules, offline CI pipeline |
-| Test Suites & ADRs | [`tests/`](../tests/fault_injection/test_fault_injection.py), [`docs/adr/`](adr/README.md), [`requirements/`](../requirements/REQ-002-customer-discount-analytics.yaml) | **Authored IP** | Unit tests, 9 fail-closed fault-injection tests, 6 ADRs, YAML contracts |
+| Test Suites & ADRs | [`tests/`](../tests/fault_injection/test_fault_injection.py), [`docs/adr/`](adr/README.md), [`requirements/`](../requirements/REQ-002-customer-discount-analytics.yaml) | **Authored IP** | Unit tests, 11 fail-closed fault-injection tests, 7 ADRs, declarative YAML contracts |
 | Showcase PBIP & Report | [`pbi/EnterpriseSales/`](../pbi/EnterpriseSales/EnterpriseSales.pbip) | **Authored IP** | 8-table Kimball star schema, 20 KPIs, 4 RLS roles, 4-page / 44-visual PBIR report |
-| Custom BI Engineering Skills | [`bi-dimensional-modeling`](../.agents/skills/bi-dimensional-modeling/SKILL.md), [`bi-dax-and-rls-engineering`](../.agents/skills/bi-dax-and-rls-engineering/SKILL.md) | **Authored IP** | Repo-specific Kimball contract, DAX hygiene, and fail-closed RLS standards |
+| Custom BI Engineering Skills | [`bi-data-profiling`](../.agents/skills/bi-data-profiling/SKILL.md), [`bi-dimensional-modeling`](../.agents/skills/bi-dimensional-modeling/SKILL.md), [`bi-dax-and-rls-engineering`](../.agents/skills/bi-dax-and-rls-engineering/SKILL.md) | **Authored IP** | Repo-specific Gate `G0` profiling, Kimball contract, DAX hygiene, and fail-closed RLS standards |
 | Power BI / Fabric Ecosystem Skills | `.agents/skills/{connect-pbid, create-pbi-report, dax, lineage-analysis, modifying-theme-json, organize-semantic-model, pbi-report-design, pbip, pbir-cli, pbir-format, power-query, refresh-semantic-model, review-report, semantic-model, tmdl}` | **Vendored / Third-Party Skills** | Reusable Power BI Desktop, `pbir-cli`, Tabular Editor, DAX, Power Query, and TMDL reference skills (marked `linguist-vendored` in [`.gitattributes`](../.gitattributes)) |

@@ -1,5 +1,6 @@
-"""Deterministic verification gates G1-G7 and unified runner."""
+"""Deterministic verification gates G0-G7 and unified runner."""
 
+from bi_agent.gates.g0_data_profiling import profile_path, run_gate_g0
 from bi_agent.gates.g1_design_contract import run_gate_g1
 from bi_agent.gates.g2_pbip_structure import run_gate_g2
 from bi_agent.gates.g3_bpa_vpax import run_gate_g3
@@ -10,7 +11,9 @@ from bi_agent.gates.g7_git_governance import run_gate_g7
 from bi_agent.gates.runner import run_all_gates
 
 __all__ = [
+    "profile_path",
     "run_all_gates",
+    "run_gate_g0",
     "run_gate_g1",
     "run_gate_g2",
     "run_gate_g3",

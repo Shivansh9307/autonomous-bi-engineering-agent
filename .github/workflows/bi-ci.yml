@@ -45,7 +45,7 @@ jobs:
         run: uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
 
   bi-offline-gates:
-    name: Windows BI Offline Gates (G1-G3, G6, G7) & Fault Injection
+    name: Windows BI Offline Gates (G0-G3, G6, G7) & Fault Injection
     runs-on: windows-latest
     defaults:
       run:

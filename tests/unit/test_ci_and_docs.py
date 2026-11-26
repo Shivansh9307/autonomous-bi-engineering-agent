@@ -28,6 +28,7 @@ VENDORED_SKILLS = (
 )
 
 AUTHORED_SKILLS = (
+    "bi-data-profiling",
     "bi-dimensional-modeling",
     "bi-dax-and-rls-engineering",
 )
@@ -94,7 +95,7 @@ def test_adrs_readme_and_walkthrough_exist_and_cross_link() -> None:
 
     assert ops_path.is_file()
     ops_text = ops_path.read_text(encoding="utf-8")
-    assert "7-Gate Verification Matrix" in ops_text
+    assert "8-Gate Verification Matrix" in ops_text
     assert "Authored IP vs. Vendored Skills" in ops_text
     assert "Finance Modeling Safeguards" in ops_text
 
@@ -128,6 +129,7 @@ def test_adrs_readme_and_walkthrough_exist_and_cross_link() -> None:
         "0004-evidence-gated-git-commits-via-staged-tree-sha.md",
         "0005-offline-ci-versus-live-desktop-verification-split.md",
         "0006-customdata-rls-testing-shim-and-service-hardening.md",
+        "0007-gate-g0-data-profiling-and-domain-agnostic-contracts.md",
     ]
     for filename in adr_files:
         adr_path = repo_root / "docs" / "adr" / filename

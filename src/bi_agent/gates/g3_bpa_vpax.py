@@ -30,6 +30,7 @@ def run_gate_g3(
     database: str = "",
     offline: bool = False,
     output_dir: Path | None = None,
+    report_name: str = "",
 ) -> GateResult:
     """Run TE2 BPA on TMDL and optionally export/audit live VPAX metrics."""
     start = time.perf_counter()
@@ -82,7 +83,7 @@ def run_gate_g3(
         target_port = port
         target_db = database
         if target_port is None:
-            disc = adomd_adapter.discover_instance(config, repo_root)
+            disc = adomd_adapter.discover_instance(config, repo_root, report_name=report_name)
             if disc.ok and disc.selected:
                 target_port = disc.selected.port
                 target_db = target_db or disc.selected.database

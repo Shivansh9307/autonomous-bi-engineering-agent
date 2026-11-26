@@ -17,9 +17,9 @@ from bi_agent.schemas.requirement import (
 )
 
 RELATIONSHIP_DSL_RE = re.compile(
-    r"^\s*([A-Za-z_][A-Za-z0-9_ ]*)\[([^\]]+)\]\s*->\s*"
-    r"([A-Za-z_][A-Za-z0-9_ ]*)\[([^\]]+)\]\s*"
-    r"\(\s*(\*:1|1:1|\*:\*)\s*,\s*(Single|Both)\s*\)\s*$"
+    r"^\s*'?([A-Za-z_][A-Za-z0-9_ ]*)'?\[([^\]]+)\]\s*->\s*"
+    r"'?([A-Za-z_][A-Za-z0-9_ ]*)'?\[([^\]]+)\]\s*"
+    r"\(\s*(\*:1|1:1|\*:\*)\s*,\s*(Single|Both)(?:\s*,\s*(Active|Inactive))?\s*\)\s*$"
 )
 
 
@@ -34,7 +34,7 @@ class RelationshipSpec(BaseModel):
 
 
 def parse_relationship_dsl(expr: str) -> RelationshipSpec:
-    """Parse `'FactSales[DateKey] -> DimDate[DateKey] (*:1, Single)'` into RelationshipSpec."""
+    """Parse `'FactTable[DateKey] -> DimDate[DateKey] (*:1, Single)'` into RelationshipSpec."""
     match = RELATIONSHIP_DSL_RE.match(expr)
     if not match:
         raise ValueError(
@@ -48,6 +48,7 @@ def parse_relationship_dsl(expr: str) -> RelationshipSpec:
         to_column=match.group(4).strip(),
         cardinality=match.group(5),  # type: ignore[arg-type]
         cross_filter=match.group(6),  # type: ignore[arg-type]
+        is_active=(match.group(7) or "Active") != "Inactive",
     )
 
 
@@ -66,7 +67,7 @@ class DimensionalModelSpec(BaseModel):
         rels = [parse_relationship_dsl(item) for item in req.star_schema.relationships]
         return cls(
             req_id=req.id,
-            target_pbip=req.target_pbip,
+            target_pbip=req.resolved_pbip_path(),
             facts=list(req.star_schema.facts),
             dimensions=list(req.star_schema.dimensions),
             relationships=rels,

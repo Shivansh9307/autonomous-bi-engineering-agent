@@ -1,4 +1,4 @@
-"""Gate G5: Live ADOMD.NET Row-Level Security impersonation matrix verification."""
+"""Gate G5: Contract-driven live ADOMD.NET Row-Level Security impersonation verification."""
 
 from __future__ import annotations
 
@@ -11,27 +11,18 @@ from bi_agent.adapters import adomd_adapter
 from bi_agent.config import ToolchainConfig
 from bi_agent.gates.g4_dax_reconciliation import _get_field
 from bi_agent.schemas.evidence import GateFinding, GateResult
-from bi_agent.schemas.requirement import load_requirement
-from bi_agent.schemas.test_suite import load_ground_truth
-
-STATIC_RLS_QUERY = """EVALUATE
-ROW(
-    "RowCount", COUNTROWS('FactSales'),
-    "BudgetRowCount", COUNTROWS('FactBudget'),
-    "TotalRevenue", COALESCE([Total Revenue], 0),
-    "Regions", CONCATENATEX(VALUES('DimStore'[Region]), 'DimStore'[Region], ",")
-)"""
-
-DYNAMIC_RLS_QUERY = """EVALUATE
-ROW(
-    "RowCount", COUNTROWS('FactSales'),
-    "BudgetRowCount", COUNTROWS('FactBudget'),
-    "TotalRevenue", COALESCE([Total Revenue], 0),
-    "BudgetRevenue", COALESCE([Budget Revenue], 0),
-    "GrossMargin", COALESCE([Gross Margin], 0)
-)"""
+from bi_agent.schemas.requirement import (
+    BusinessRequirement,
+    DynamicRlsCheckSpec,
+    RlsKpiAssertionSpec,
+    RlsRequirement,
+    StaticRlsCheckSpec,
+    load_requirement,
+)
+from bi_agent.schemas.test_suite import GroundTruthDataset, load_ground_truth, resolve_dot_path
 
 QUOTED_LITERAL_RE = re.compile(r'"([^"]+)"')
+COL_LEAF_RE = re.compile(r"\[([^\]]+)\]")
 ROLE_HEADER_RE = re.compile(r"^\s*role\s+('([^']+)'|([^\s]+))\s*$")
 TABLE_PERM_RE = re.compile(r"^\t+tablePermission\s+('([^']+)'|([^\s=]+))\s*=\s*(.*)$")
 REL_HEADER_RE = re.compile(r"^\s*relationship\s+")
@@ -148,6 +139,64 @@ def _parse_active_relationships(def_dir: Path) -> dict[str, set[str]]:
     return propagates_to
 
 
+def _build_rls_dax_query(
+    fact_tables: list[str],
+    kpi_assertions: list[RlsKpiAssertionSpec],
+    scope_column: str = "",
+) -> str:
+    row_lines = [f'    "Rows_{fact}", COUNTROWS(\'{fact}\')' for fact in fact_tables]
+    if scope_column:
+        row_lines.append(
+            f'    "ScopeValues", CONCATENATEX(VALUES({scope_column}), {scope_column}, ",")'
+        )
+    for kpi in kpi_assertions:
+        row_lines.append(f'    "{kpi.alias}", {kpi.dax_expression}')
+    return "EVALUATE\nROW(\n" + ",\n".join(row_lines) + "\n)"
+
+
+def _extract_fact_count(row: dict[str, Any], fact_name: str, is_primary: bool) -> int | None:
+    stem = fact_name[4:] if fact_name.startswith("Fact") else fact_name
+    candidates = [f"Rows_{fact_name}", f"{stem}RowCount", f"{fact_name}RowCount"]
+    if is_primary:
+        candidates.append("RowCount")
+    raw = _get_field(row, *candidates)
+    if raw is None:
+        return None
+    return int(float(raw))
+
+
+def _extract_scope_values(row: dict[str, Any], scope_column: str) -> str:
+    candidates = ["ScopeValues"]
+    m = COL_LEAF_RE.search(scope_column)
+    if m:
+        leaf = m.group(1).strip()
+        candidates.extend([leaf, f"{leaf}s"])
+    val = _get_field(row, *candidates)
+    return str(val or "")
+
+
+def _resolve_kpi_expected(
+    kpi: RlsKpiAssertionSpec,
+    gt: GroundTruthDataset,
+    entry: Any = None,
+) -> float | None:
+    if kpi.expected_value is not None:
+        return float(kpi.expected_value)
+    if kpi.expected_path:
+        val = gt.resolve(kpi.expected_path)
+        if val is not None:
+            return float(val)
+    if kpi.expected_field and entry is not None:
+        val = resolve_dot_path(entry, kpi.expected_field)
+        if val is not None:
+            return float(val)
+    return None
+
+
+def _build_role_lookup(req: BusinessRequirement) -> dict[str, RlsRequirement]:
+    return {r.name: r for r in req.rls_roles}
+
+
 def run_gate_g5_offline(
     project_dir: Path,
     requirement_path: Path,
@@ -155,6 +204,22 @@ def run_gate_g5_offline(
     """Audit TMDL RLS role definitions against the requirement contract and star schema offline."""
     start = time.perf_counter()
     req = load_requirement(requirement_path)
+    if not req.rls_roles:
+        elapsed = int((time.perf_counter() - start) * 1000)
+        return GateResult(
+            gate_id="G5",
+            name="Live RLS Impersonation",
+            status="SKIP",
+            duration_ms=elapsed,
+            summary="No RLS roles declared in contract (0 roles audited); offline check skipped.",
+            metrics={
+                "offline": True,
+                "roles_audited": 0,
+                "live_impersonation_skipped": True,
+            },
+            findings=[],
+        )
+
     def_dir = _find_definition_dir(project_dir)
     if def_dir is None:
         elapsed = int((time.perf_counter() - start) * 1000)
@@ -280,6 +345,374 @@ def run_gate_g5_offline(
     )
 
 
+def _run_static_check(
+    check: StaticRlsCheckSpec,
+    role_req: RlsRequirement | None,
+    fact_tables: list[str],
+    gt: GroundTruthDataset,
+    target_port: int,
+    target_db: str,
+    config: ToolchainConfig,
+    repo_root: Path,
+    tol: float,
+    findings: list[GateFinding],
+    matrix: list[dict[str, Any]],
+) -> None:
+    dax_query = _build_rls_dax_query(
+        fact_tables, check.kpi_assertions, scope_column=check.scope_column
+    )
+    res = adomd_adapter.execute_dax(
+        target_port, dax_query, config, repo_root, database=target_db, roles=check.role
+    )
+    if not res.ok or not res.rows:
+        findings.append(
+            GateFinding(
+                severity="error",
+                code="G5_STATIC_QUERY_FAILED",
+                message=f"Static RLS query failed for role '{check.role}': {res.error}",
+            )
+        )
+        return
+
+    row = res.rows[0]
+    fact_counts: dict[str, int | None] = {
+        fn: _extract_fact_count(row, fn, is_primary=(idx == 0))
+        for idx, fn in enumerate(fact_tables)
+    }
+    denied = role_req.denied_tables() if role_req is not None else set()
+    gt_entry = (
+        gt.resolve(check.ground_truth_entry_path) if check.ground_truth_entry_path else None
+    )
+
+    expected_scope = check.expected_scope_value
+    if not expected_scope and role_req is not None:
+        m = QUOTED_LITERAL_RE.search(role_req.primary_filter())
+        if m:
+            expected_scope = m.group(1)
+
+    actual_scope = (
+        _extract_scope_values(row, check.scope_column) if check.scope_column else ""
+    )
+    case_ok = True
+    if expected_scope and actual_scope and actual_scope != expected_scope:
+        case_ok = False
+        findings.append(
+            GateFinding(
+                severity="error",
+                code="G5_CROSS_REGION_LEAKAGE",
+                message=(
+                    f"Role '{check.role}' leaked scope values '{actual_scope}' "
+                    f"(expected strictly '{expected_scope}')."
+                ),
+            )
+        )
+
+    for fact_name in denied:
+        actual_c = fact_counts.get(fact_name)
+        if actual_c is not None and actual_c != 0:
+            case_ok = False
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G5_CROSS_FACT_LEAK",
+                    message=(
+                        f"Role '{check.role}' saw {actual_c} '{fact_name}' rows "
+                        "(expected 0 via explicit deny)."
+                    ),
+                )
+            )
+
+    expected_counts: dict[str, int] = dict(check.expected_fact_counts)
+    for fact_name, gt_field in check.fact_row_count_fields.items():
+        if gt_entry is not None:
+            val = resolve_dot_path(gt_entry, gt_field)
+            if val is not None:
+                expected_counts[fact_name] = int(val)
+
+    for fact_name, exp_c in expected_counts.items():
+        act_c = fact_counts.get(fact_name)
+        if act_c is None or act_c != exp_c:
+            case_ok = False
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G5_STATIC_ROW_MISMATCH",
+                    message=(
+                        f"Role '{check.role}' '{fact_name}' row count {act_c} != "
+                        f"expected {exp_c}"
+                    ),
+                )
+            )
+
+    kpis_out: dict[str, float | None] = {}
+    for kpi in check.kpi_assertions:
+        act_raw = _get_field(row, kpi.alias)
+        act_val = float(act_raw) if act_raw is not None else None
+        kpis_out[kpi.alias] = act_val
+        exp_val = _resolve_kpi_expected(kpi, gt, gt_entry)
+        if exp_val is None:
+            continue
+        kpi_tol = kpi.tolerance if kpi.tolerance is not None else tol
+        if act_val is None or abs(act_val - exp_val) > kpi_tol:
+            case_ok = False
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G5_STATIC_REVENUE_MISMATCH",
+                    message=(
+                        f"Role '{check.role}' KPI '{kpi.alias}'={act_val} != "
+                        f"expected {exp_val}"
+                    ),
+                )
+            )
+
+    clean_counts = {k: v for k, v in fact_counts.items() if v is not None}
+    matrix.append(
+        {
+            "role": check.role,
+            "type": "static",
+            "principal": None,
+            "fact_counts": clean_counts,
+            "kpis": kpis_out,
+            "scope_visible": actual_scope,
+            "status": "PASS" if case_ok else "FAIL",
+        }
+    )
+
+
+def _run_dynamic_check(
+    check: DynamicRlsCheckSpec,
+    role_req: RlsRequirement | None,
+    fact_tables: list[str],
+    gt: GroundTruthDataset,
+    target_port: int,
+    target_db: str,
+    config: ToolchainConfig,
+    repo_root: Path,
+    tol: float,
+    findings: list[GateFinding],
+    matrix: list[dict[str, Any]],
+) -> None:
+    gt_map = gt.resolve(check.ground_truth_map_path) if check.ground_truth_map_path else {}
+    map_keys = list(gt_map.keys()) if hasattr(gt_map, "keys") else []
+    principals = (
+        list(check.principals)
+        or (list(role_req.test_principals) if role_req is not None else [])
+        or map_keys
+    )
+    denied = role_req.denied_tables() if role_req is not None else set()
+    dax_query = _build_rls_dax_query(fact_tables, check.kpi_assertions)
+    checked_local_fail_closed = False
+
+    for upn in principals:
+        impersonation_mode = "effective_user_name"
+        res = adomd_adapter.execute_dax(
+            target_port,
+            dax_query,
+            config,
+            repo_root,
+            database=target_db,
+            roles=check.role,
+            effective_user_name=upn,
+        )
+        if not res.ok and "CreateWithS4U" in (res.error or ""):
+            if not checked_local_fail_closed:
+                checked_local_fail_closed = True
+                base_res = adomd_adapter.execute_dax(
+                    target_port,
+                    dax_query,
+                    config,
+                    repo_root,
+                    database=target_db,
+                    roles=check.role,
+                )
+                if not base_res.ok or not base_res.rows:
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G5_DYNAMIC_QUERY_FAILED",
+                            message=(
+                                f"Dynamic RLS baseline check failed for role "
+                                f"'{check.role}': {base_res.error}"
+                            ),
+                        )
+                    )
+                else:
+                    base_row = base_res.rows[0]
+                    base_counts = {
+                        fn: _extract_fact_count(base_row, fn, is_primary=(idx == 0))
+                        for idx, fn in enumerate(fact_tables)
+                    }
+                    base_ok = True
+                    for idx, fn in enumerate(fact_tables):
+                        cnt = base_counts[fn]
+                        if cnt is not None and cnt != 0:
+                            base_ok = False
+                            findings.append(
+                                GateFinding(
+                                    severity="error",
+                                    code="G5_FAIL_OPEN_LEAK" if idx == 0 else "G5_CROSS_FACT_LEAK",
+                                    message=(
+                                        f"Local principal under role '{check.role}' saw "
+                                        f"{cnt} '{fn}' rows (must fail closed to 0)."
+                                    ),
+                                )
+                            )
+                    matrix.append(
+                        {
+                            "role": check.role,
+                            "type": "dynamic",
+                            "principal": "<local_user>",
+                            "impersonation_mode": "local_upn_fail_closed",
+                            "fact_counts": {k: v for k, v in base_counts.items() if v is not None},
+                            "expected_fact_counts": {fn: 0 for fn in fact_tables},
+                            "kpis": {},
+                            "status": "PASS" if base_ok else "FAIL",
+                        }
+                    )
+
+            res = adomd_adapter.execute_dax(
+                target_port,
+                dax_query,
+                config,
+                repo_root,
+                database=target_db,
+                roles=check.role,
+                custom_data=upn,
+            )
+            impersonation_mode = "custom_data_fallback"
+
+        if not res.ok or not res.rows:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G5_DYNAMIC_QUERY_FAILED",
+                    message=f"Dynamic RLS query failed for '{upn}': {res.error}",
+                )
+            )
+            continue
+
+        row = res.rows[0]
+        fact_counts = {
+            fn: _extract_fact_count(row, fn, is_primary=(idx == 0))
+            for idx, fn in enumerate(fact_tables)
+        }
+        expected_entry = (
+            gt_map.get(upn)
+            if hasattr(gt_map, "get")
+            else (
+                gt.resolve(f"{check.ground_truth_map_path}.{upn}")
+                if check.ground_truth_map_path
+                else None
+            )
+        )
+
+        expected_counts: dict[str, int] = {}
+        is_unauthorized = expected_entry is None
+        if not is_unauthorized:
+            for idx, fn in enumerate(fact_tables):
+                if fn in denied:
+                    expected_counts[fn] = 0
+                elif fn in check.fact_row_count_fields:
+                    val = resolve_dot_path(expected_entry, check.fact_row_count_fields[fn])
+                    if val is not None:
+                        expected_counts[fn] = int(val)
+                elif idx == 0:
+                    fallback_cnt = resolve_dot_path(expected_entry, "row_count")
+                    if fallback_cnt is not None:
+                        expected_counts[fn] = int(fallback_cnt)
+            if expected_counts and all(v == 0 for v in expected_counts.values()):
+                is_unauthorized = True
+        else:
+            expected_counts = {fn: 0 for fn in fact_tables}
+
+        case_ok = True
+        if is_unauthorized:
+            for idx, fn in enumerate(fact_tables):
+                act_c = fact_counts.get(fn)
+                if act_c is not None and act_c != 0:
+                    case_ok = False
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G5_FAIL_OPEN_LEAK" if idx == 0 else "G5_CROSS_FACT_LEAK",
+                            message=(
+                                f"Unauthorized/unmapped principal '{upn}' under role "
+                                f"'{check.role}' saw {act_c} '{fn}' rows "
+                                "(must fail closed to 0)."
+                            ),
+                        )
+                    )
+        else:
+            for fn in denied:
+                act_c = fact_counts.get(fn)
+                if act_c is not None and act_c != 0:
+                    case_ok = False
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G5_CROSS_FACT_LEAK",
+                            message=(
+                                f"Principal '{upn}' under role '{check.role}' saw "
+                                f"{act_c} '{fn}' rows (expected 0 via explicit deny)."
+                            ),
+                        )
+                    )
+            for fn, exp_c in expected_counts.items():
+                if fn in denied:
+                    continue
+                act_c = fact_counts.get(fn)
+                if act_c is None or act_c != exp_c:
+                    case_ok = False
+                    findings.append(
+                        GateFinding(
+                            severity="error",
+                            code="G5_DYNAMIC_ROW_MISMATCH",
+                            message=(
+                                f"Principal '{upn}' '{fn}' row count {act_c} != "
+                                f"expected {exp_c}"
+                            ),
+                        )
+                    )
+
+        kpis_out: dict[str, float | None] = {}
+        for kpi in check.kpi_assertions:
+            act_raw = _get_field(row, kpi.alias)
+            act_val = float(act_raw) if act_raw is not None else None
+            kpis_out[kpi.alias] = act_val
+            if is_unauthorized:
+                continue
+            exp_val = _resolve_kpi_expected(kpi, gt, expected_entry)
+            if exp_val is None:
+                continue
+            kpi_tol = kpi.tolerance if kpi.tolerance is not None else tol
+            if act_val is None or abs(act_val - exp_val) > kpi_tol:
+                case_ok = False
+                findings.append(
+                    GateFinding(
+                        severity="error",
+                        code="G5_DYNAMIC_REVENUE_MISMATCH",
+                        message=(
+                            f"Principal '{upn}' KPI '{kpi.alias}'={act_val} != "
+                            f"expected {exp_val}"
+                        ),
+                    )
+                )
+
+        matrix.append(
+            {
+                "role": check.role,
+                "type": "dynamic",
+                "principal": upn,
+                "impersonation_mode": impersonation_mode,
+                "fact_counts": {k: v for k, v in fact_counts.items() if v is not None},
+                "expected_fact_counts": expected_counts,
+                "kpis": kpis_out,
+                "status": "PASS" if case_ok else "FAIL",
+            }
+        )
+
+
 def run_gate_g5(
     requirement_path: Path,
     ground_truth_path: Path,
@@ -288,17 +721,63 @@ def run_gate_g5(
     port: int | None = None,
     database: str = "",
     tolerance: float | None = None,
+    report_name: str = "",
 ) -> GateResult:
-    """Verify static and dynamic RLS roles enforce isolation and fail closed."""
+    """Verify contracted static and dynamic RLS roles enforce isolation and fail closed."""
     start = time.perf_counter()
-    tol = tolerance if tolerance is not None else config.gates.dax_numeric_tolerance
     req = load_requirement(requirement_path)
     gt = load_ground_truth(ground_truth_path)
+    fact_tables = [f.name for f in req.star_schema.facts]
+
+    if not req.rls_roles:
+        elapsed = int((time.perf_counter() - start) * 1000)
+        return GateResult(
+            gate_id="G5",
+            name="Live RLS Impersonation",
+            status="SKIP",
+            duration_ms=elapsed,
+            summary="No RLS roles declared in contract; live impersonation skipped.",
+            metrics={"fact_tables": fact_tables, "scenarios_tested": 0, "matrix": []},
+            findings=[],
+        )
+
+    rls_spec = req.verification.rls_checks
+    if not rls_spec.static_checks and not rls_spec.dynamic_checks:
+        elapsed = int((time.perf_counter() - start) * 1000)
+        return GateResult(
+            gate_id="G5",
+            name="Live RLS Impersonation",
+            status="FAIL",
+            duration_ms=elapsed,
+            summary="Contract declares rls_roles but verification.rls_checks is empty.",
+            findings=[
+                GateFinding(
+                    severity="error",
+                    code="G5_CONTRACT_MISSING",
+                    message=(
+                        "Declare verification.rls_checks (static_checks / dynamic_checks) "
+                        "for all rls_roles."
+                    ),
+                    location=str(requirement_path),
+                )
+            ],
+        )
+
+    tol = (
+        tolerance
+        if tolerance is not None
+        else req.verification_acceptance.dax_numeric_tolerance
+    )
+    target_report_name = (
+        report_name or req.resolved_desktop_report_name() or config.project.desktop_report_name
+    )
 
     target_port = port
     target_db = database
     if target_port is None:
-        disc = adomd_adapter.discover_instance(config, repo_root)
+        disc = adomd_adapter.discover_instance(
+            config, repo_root, report_name=target_report_name
+        )
         if not disc.ok or not disc.selected:
             elapsed = int((time.perf_counter() - start) * 1000)
             return GateResult(
@@ -320,285 +799,54 @@ def run_gate_g5(
 
     findings: list[GateFinding] = []
     matrix: list[dict[str, Any]] = []
+    role_lookup = _build_role_lookup(req)
 
+    covered_roles = {c.role for c in rls_spec.static_checks} | {
+        c.role for c in rls_spec.dynamic_checks
+    }
     for role in req.rls_roles:
-        if role.type == "static":
-            match = QUOTED_LITERAL_RE.search(role.primary_filter())
-            expected_region = match.group(1) if match else role.name.replace("Region_", "")
-            res = adomd_adapter.execute_dax(
-                target_port,
-                STATIC_RLS_QUERY,
-                config,
-                repo_root,
-                database=target_db,
-                roles=role.name,
-            )
-            if not res.ok or not res.rows:
-                findings.append(
-                    GateFinding(
-                        severity="error",
-                        code="G5_STATIC_QUERY_FAILED",
-                        message=f"Static RLS query failed for role '{role.name}': {res.error}",
-                    )
+        if role.name not in covered_roles:
+            findings.append(
+                GateFinding(
+                    severity="error",
+                    code="G5_UNCOVERED_ROLE",
+                    message=(
+                        f"Contracted RLS role '{role.name}' has no check in "
+                        "verification.rls_checks."
+                    ),
+                    location=str(requirement_path),
                 )
-                continue
-
-            row = res.rows[0]
-            actual_rows = int(float(_get_field(row, "RowCount") or 0))
-            raw_budget_rows = _get_field(row, "BudgetRowCount")
-            actual_budget_rows: int | None = (
-                int(float(raw_budget_rows)) if raw_budget_rows is not None else None
-            )
-            actual_rev = float(_get_field(row, "TotalRevenue") or 0.0)
-            actual_regions = str(_get_field(row, "Regions") or "")
-
-            expected = gt.by_region.get(expected_region)
-            case_ok = True
-            if actual_regions and actual_regions != expected_region:
-                case_ok = False
-                findings.append(
-                    GateFinding(
-                        severity="error",
-                        code="G5_CROSS_REGION_LEAKAGE",
-                        message=(
-                            f"Role '{role.name}' leaked regions '{actual_regions}' "
-                            f"(expected strictly '{expected_region}')."
-                        ),
-                    )
-                )
-            if expected is not None:
-                if actual_rows != expected.row_count:
-                    case_ok = False
-                    findings.append(
-                        GateFinding(
-                            severity="error",
-                            code="G5_STATIC_ROW_MISMATCH",
-                            message=(
-                                f"Role '{role.name}' row count {actual_rows} != "
-                                f"expected {expected.row_count}"
-                            ),
-                        )
-                    )
-                if abs(actual_rev - expected.total_revenue) > tol:
-                    case_ok = False
-                    findings.append(
-                        GateFinding(
-                            severity="error",
-                            code="G5_STATIC_REVENUE_MISMATCH",
-                            message=(
-                                f"Role '{role.name}' revenue {actual_rev} != "
-                                f"expected {expected.total_revenue}"
-                            ),
-                        )
-                    )
-
-            matrix.append(
-                {
-                    "role": role.name,
-                    "type": "static",
-                    "principal": None,
-                    "actual_rows": actual_rows,
-                    "actual_budget_rows": actual_budget_rows,
-                    "actual_revenue": actual_rev,
-                    "regions_visible": actual_regions,
-                    "status": "PASS" if case_ok else "FAIL",
-                }
             )
 
-        elif role.type == "dynamic":
-            principals = role.test_principals or list(gt.by_sales_rep_upn.keys())
-            denies_fact_budget = "FactBudget" in role.denied_tables()
-            checked_local_upn_fail_closed = False
-            for upn in principals:
-                impersonation_mode = "effective_user_name"
-                res = adomd_adapter.execute_dax(
-                    target_port,
-                    DYNAMIC_RLS_QUERY,
-                    config,
-                    repo_root,
-                    database=target_db,
-                    roles=role.name,
-                    effective_user_name=upn,
-                )
-                if not res.ok and "CreateWithS4U" in (res.error or ""):
-                    if not checked_local_upn_fail_closed:
-                        checked_local_upn_fail_closed = True
-                        base_res = adomd_adapter.execute_dax(
-                            target_port,
-                            DYNAMIC_RLS_QUERY,
-                            config,
-                            repo_root,
-                            database=target_db,
-                            roles=role.name,
-                        )
-                        if not base_res.ok or not base_res.rows:
-                            findings.append(
-                                GateFinding(
-                                    severity="error",
-                                    code="G5_DYNAMIC_QUERY_FAILED",
-                                    message=(
-                                        f"Dynamic RLS baseline check failed for role "
-                                        f"'{role.name}': {base_res.error}"
-                                    ),
-                                )
-                            )
-                        else:
-                            base_row = base_res.rows[0]
-                            base_rows = int(float(_get_field(base_row, "RowCount") or 0))
-                            base_budget_rows = int(
-                                float(_get_field(base_row, "BudgetRowCount") or 0)
-                            )
-                            base_rev = float(_get_field(base_row, "TotalRevenue") or 0.0)
-                            base_ok = base_rows == 0 and base_budget_rows == 0
-                            if base_rows != 0:
-                                findings.append(
-                                    GateFinding(
-                                        severity="error",
-                                        code="G5_FAIL_OPEN_LEAK",
-                                        message=(
-                                            f"Local principal under role '{role.name}' saw "
-                                            f"{base_rows} FactSales rows (must fail closed to 0)."
-                                        ),
-                                    )
-                                )
-                            if base_budget_rows != 0:
-                                findings.append(
-                                    GateFinding(
-                                        severity="error",
-                                        code="G5_CROSS_FACT_LEAK",
-                                        message=(
-                                            f"Local principal under role '{role.name}' saw "
-                                            f"{base_budget_rows} FactBudget rows (must be 0)."
-                                        ),
-                                    )
-                                )
-                            matrix.append(
-                                {
-                                    "role": role.name,
-                                    "type": "dynamic",
-                                    "principal": "<local_user>",
-                                    "impersonation_mode": "local_upn_fail_closed",
-                                    "actual_rows": base_rows,
-                                    "actual_budget_rows": base_budget_rows,
-                                    "actual_revenue": base_rev,
-                                    "expected_rows": 0,
-                                    "expected_budget_rows": 0,
-                                    "status": "PASS" if base_ok else "FAIL",
-                                }
-                            )
-                    res = adomd_adapter.execute_dax(
-                        target_port,
-                        DYNAMIC_RLS_QUERY,
-                        config,
-                        repo_root,
-                        database=target_db,
-                        roles=role.name,
-                        custom_data=upn,
-                    )
-                    impersonation_mode = "custom_data_fallback"
+    for static_check in rls_spec.static_checks:
+        _run_static_check(
+            static_check,
+            role_lookup.get(static_check.role),
+            fact_tables,
+            gt,
+            target_port,
+            target_db,
+            config,
+            repo_root,
+            tol,
+            findings,
+            matrix,
+        )
 
-                if not res.ok or not res.rows:
-                    findings.append(
-                        GateFinding(
-                            severity="error",
-                            code="G5_DYNAMIC_QUERY_FAILED",
-                            message=f"Dynamic RLS query failed for '{upn}': {res.error}",
-                        )
-                    )
-                    continue
-
-                row = res.rows[0]
-                actual_rows = int(float(_get_field(row, "RowCount") or 0))
-                actual_budget_rows = int(float(_get_field(row, "BudgetRowCount") or 0))
-                actual_rev = float(_get_field(row, "TotalRevenue") or 0.0)
-                expected = gt.by_sales_rep_upn.get(upn)
-                expected_budget_rows = (
-                    0
-                    if (expected is None or expected.row_count == 0 or denies_fact_budget)
-                    else expected.budget_row_count
-                )
-
-                case_ok = True
-                if expected is None or expected.row_count == 0:
-                    if actual_rows != 0:
-                        case_ok = False
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G5_FAIL_OPEN_LEAK",
-                                message=(
-                                    f"Unauthorized/unmapped principal '{upn}' under role "
-                                    f"'{role.name}' saw {actual_rows} FactSales rows "
-                                    "(must fail closed to 0)."
-                                ),
-                            )
-                        )
-                    if actual_budget_rows != 0:
-                        case_ok = False
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G5_CROSS_FACT_LEAK",
-                                message=(
-                                    f"Unauthorized/unmapped principal '{upn}' under role "
-                                    f"'{role.name}' saw {actual_budget_rows} FactBudget rows "
-                                    "(must fail closed to 0)."
-                                ),
-                            )
-                        )
-                else:
-                    if actual_rows != expected.row_count:
-                        case_ok = False
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G5_DYNAMIC_ROW_MISMATCH",
-                                message=(
-                                    f"Principal '{upn}' row count {actual_rows} != "
-                                    f"expected {expected.row_count}"
-                                ),
-                            )
-                        )
-                    if abs(actual_rev - expected.total_revenue) > tol:
-                        case_ok = False
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G5_DYNAMIC_REVENUE_MISMATCH",
-                                message=(
-                                    f"Principal '{upn}' revenue {actual_rev} != "
-                                    f"expected {expected.total_revenue}"
-                                ),
-                            )
-                        )
-                    if denies_fact_budget and actual_budget_rows != 0:
-                        case_ok = False
-                        findings.append(
-                            GateFinding(
-                                severity="error",
-                                code="G5_CROSS_FACT_LEAK",
-                                message=(
-                                    f"Principal '{upn}' under role '{role.name}' saw "
-                                    f"{actual_budget_rows} FactBudget rows "
-                                    "(expected 0 via explicit FactBudget deny)."
-                                ),
-                            )
-                        )
-
-                matrix.append(
-                    {
-                        "role": role.name,
-                        "type": "dynamic",
-                        "principal": upn,
-                        "impersonation_mode": impersonation_mode,
-                        "actual_rows": actual_rows,
-                        "actual_budget_rows": actual_budget_rows,
-                        "actual_revenue": actual_rev,
-                        "expected_rows": expected.row_count if expected else 0,
-                        "expected_budget_rows": expected_budget_rows,
-                        "status": "PASS" if case_ok else "FAIL",
-                    }
-                )
+    for dynamic_check in rls_spec.dynamic_checks:
+        _run_dynamic_check(
+            dynamic_check,
+            role_lookup.get(dynamic_check.role),
+            fact_tables,
+            gt,
+            target_port,
+            target_db,
+            config,
+            repo_root,
+            tol,
+            findings,
+            matrix,
+        )
 
     elapsed = int((time.perf_counter() - start) * 1000)
     passed = len(findings) == 0 and len(matrix) > 0
@@ -612,6 +860,10 @@ def run_gate_g5(
             if passed
             else f"{len(findings)} RLS security verification failure(s)"
         ),
-        metrics={"scenarios_tested": len(matrix), "matrix": matrix},
+        metrics={
+            "fact_tables": fact_tables,
+            "scenarios_tested": len(matrix),
+            "matrix": matrix,
+        },
         findings=findings,
     )
