@@ -74,6 +74,67 @@
             "id": "default"
           }
         }
+      ],
+      "referenceLabel": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Discount Rate %"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total Discount",
+            "id": "field-47b4fd4e-aa85-4348-a0d2-d1d2236c8aa1",
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 0
+                }
+              }
+            ],
+            "order": 0
+          }
+        }
+      ],
+      "referenceLabelTitle": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "titleContentType": {
+              "expr": {
+                "Literal": {
+                  "Value": "'custom'"
+                }
+              }
+            },
+            "titleText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Discount Rate'"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "_Measures.Total Discount",
+            "id": "field-47b4fd4e-aa85-4348-a0d2-d1d2236c8aa1"
+          }
+        }
       ]
     },
     "drillFilterOtherVisuals": true,

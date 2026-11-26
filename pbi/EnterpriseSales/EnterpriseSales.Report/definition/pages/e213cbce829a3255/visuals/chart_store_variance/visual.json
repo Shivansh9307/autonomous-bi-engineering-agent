@@ -100,7 +100,7 @@
                 "Property": "Budget Variance"
               }
             },
-            "direction": "Descending"
+            "direction": "Ascending"
           }
         ],
         "isDefaultSort": true
