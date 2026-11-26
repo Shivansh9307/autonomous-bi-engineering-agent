@@ -1,6 +1,6 @@
 # Phase State Checkpoint
 
-- **Current Phase:** Phase 9 Complete (Portfolio Executive Polish verified & committed on `docs/portfolio-executive-polish`)
+- **Current Phase:** Phase 9 Complete (PR #3 merged on `main`; `product-detail.png` banner-free gallery screenshot refreshed)
 - **Completed Phases:**
   - Phase 1: Foundation, `bi-agent doctor`, deterministic synthetic CSVs + ground truth, `REQ-001`
   - Phase 2: Pydantic v2 schemas, 15 CRLF TE2 BPA rules, PowerShell ADOMD/TOM & TE2 C# scripts, 6 adapters, 7 gates (`verify-*`, `git-commit`), `.agents/rules/`, `.agents/hooks.json`, unit tests
@@ -12,4 +12,4 @@
   - Phase 8 (Visual & UX Polish): Added `DimDate[MonthStart]` in Power Query M (`Date.StartOfMonth([Date])`, `36` months) via `powerbi-modeling-mcp`; collapsed/hid global `outspacePane` and standardized all 4 pages via `pbir` CLI; refreshed `docs/images/*.png` canvas crops
   - Phase 9 (Portfolio Polish — Blocks A–C): Created `docs/portfolio-executive-polish` off `main`, MIT `LICENSE`, 15 `linguist-vendored` rules in `.gitattributes`, sanitized `verification-report.md` generator, `pbir_adapter.py` post-refresh Desktop retry hardening, `Product Name` visual polish + `docs/images/product-detail.png`, `docs/PRODUCTIONISATION_BLUEPRINT.md`, `docs/OPERATIONS_AND_CLI.md`, executive `README.md` with live `REQ-002` evidence, offline relative link tests, and evidence-gated `bi-agent git-commit` (`G1`–`G7` PASS)
 - **Next Entry Point:**
-  - Open PR / merge `docs/portfolio-executive-polish` into `main` or begin next requirement (`REQ-003`).
+  - Begin next requirement (`REQ-003`) or feature enhancement off clean `main`.
