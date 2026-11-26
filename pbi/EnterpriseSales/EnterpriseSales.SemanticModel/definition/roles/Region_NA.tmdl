@@ -1,0 +1,8 @@
+/// Static RLS restricting data to North America stores.
+role Region_NA
+	modelPermission: read
+
+	tablePermission DimStore = 'DimStore'[Region] = "NA"
+
+	annotation PBI_Id = c4f7c753b9ba47d1bbeab8b2ca4a307b
+

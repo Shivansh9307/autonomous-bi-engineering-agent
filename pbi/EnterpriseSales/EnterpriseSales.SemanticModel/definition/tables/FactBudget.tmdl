@@ -1,0 +1,51 @@
+/// Monthly store-level budget fact table.
+table FactBudget
+	lineageTag: 10f9c86f-fb31-44f3-b359-9389342fb64a
+
+	column DateKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: f85f1529-bdc3-458f-849c-add027145ba1
+		summarizeBy: none
+		sourceColumn: DateKey
+
+	column StoreKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 1469e8a5-62e8-4150-a591-e7485468db45
+		summarizeBy: none
+		sourceColumn: StoreKey
+
+	column BudgetRevenue
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: f4856311-f2ba-41fe-a0b9-99f3f1bbcdbe
+		summarizeBy: none
+		sourceColumn: BudgetRevenue
+
+	column BudgetGrossMargin
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: ba79f0ea-b7a5-4407-add0-2e7c61f76e06
+		summarizeBy: none
+		sourceColumn: BudgetGrossMargin
+
+	partition FactBudget = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\FactBudget.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"DateKey", Int64.Type},
+				        {"StoreKey", Int64.Type},
+				        {"BudgetRevenue", Currency.Type},
+				        {"BudgetGrossMargin", Currency.Type}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

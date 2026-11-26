@@ -1,0 +1,35 @@
+{
+  "name": "nav_pages",
+  "visual": {
+    "visualType": "pageNavigator",
+    "query": {
+      "queryState": {}
+    },
+    "objects": {},
+    "drillFilterOtherVisuals": true,
+    "visualContainerObjects": {
+      "general": [
+        {
+          "properties": {
+            "altText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Navigate between Executive Overview, Regional Margin Analysis, and Product Detail pages'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "position": {
+    "x": 784,
+    "y": 24,
+    "width": 472,
+    "height": 60,
+    "z": 0,
+    "tabOrder": 0
+  },
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.13.0/schema.json"
+}

@@ -90,6 +90,7 @@ def execute_dax(
     database: str = "",
     roles: str = "",
     effective_user_name: str = "",
+    custom_data: str = "",
 ) -> DaxQueryResult:
     """Execute a DAX query via ADOMD.NET with optional RLS Roles & EffectiveUserName."""
     pwsh_bin = resolve_pwsh()
@@ -117,6 +118,8 @@ def execute_dax(
         args.extend(["-Roles", roles])
     if effective_user_name:
         args.extend(["-EffectiveUserName", effective_user_name])
+    if custom_data:
+        args.extend(["-CustomData", custom_data])
     with contextlib.suppress(FileNotFoundError):
         args.extend(["-AdomdDir", resolve_adomd_dir(config)])
 

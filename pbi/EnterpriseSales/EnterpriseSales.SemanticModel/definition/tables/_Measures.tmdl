@@ -1,0 +1,139 @@
+/// Dedicated display table for enterprise KPI measures.
+table _Measures
+	lineageTag: db055435-e3b0-40ce-a875-09f0a62c23dd
+
+	/// Sum of net sales revenue after line discounts.
+	measure 'Total Revenue' = SUM ( 'FactSales'[NetRevenue] )
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 1fc94ee4-c0a0-4314-9a5f-797dd68aa6a4
+
+	/// Sum of cost of goods sold across sales order lines.
+	measure 'Total COGS' = SUM ( 'FactSales'[COGS] )
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 83b0d69b-7de7-4bf3-9d97-6b32bb74046c
+
+	/// Net revenue minus cost of goods sold.
+	measure 'Gross Margin' = [Total Revenue] - [Total COGS]
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: aeedc9d0-4b82-45a6-bc77-e7f85459e710
+
+	/// Gross margin divided by total net revenue.
+	measure 'Gross Margin %' = DIVIDE ( [Gross Margin], [Total Revenue] )
+		formatString: 0.00%
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 9e24c560-982f-4860-b446-42f5515c0fb5
+
+	/// Total quantity of units sold across order lines.
+	measure 'Total Units' = SUM ( 'FactSales'[Quantity] )
+		formatString: #,##0
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 8aabeb1d-8781-4f47-bdf3-fabef798728a
+
+	/// Total discount amount applied across order lines.
+	measure 'Total Discount' = SUM ( 'FactSales'[DiscountAmount] )
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: 1cd555d2-8762-4dc1-a00b-70d7d15d9798
+
+	/// Average net revenue per distinct sales order.
+	measure 'Average Order Value' =
+			VAR _Orders = DISTINCTCOUNT ( 'FactSales'[SalesOrderID] )
+			RETURN
+			    DIVIDE ( [Total Revenue], _Orders )
+		formatString: $#,##0.00
+		displayFolder: 01 Revenue & Margin
+		lineageTag: bec161e0-1fea-4080-9dc7-47af439141b6
+
+	/// Prior year net revenue aligned to the same calendar period.
+	measure 'Revenue PY' = CALCULATE ( [Total Revenue], SAMEPERIODLASTYEAR ( 'DimDate'[Date] ) )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: 65411e95-60ca-4cc9-b23f-714078533d31
+
+	/// Year-over-year change in net revenue versus prior year.
+	measure 'Revenue YoY' =
+			VAR _Current = [Total Revenue]
+			VAR _Prior = [Revenue PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _Prior ), _Current - _Prior )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: ffcd5b5a-c90e-4bd6-bd70-11c868cf8ddb
+
+	/// Year-over-year net revenue growth percentage.
+	measure 'Revenue YoY %' =
+			VAR _Prior = [Revenue PY]
+			RETURN
+			    DIVIDE ( [Revenue YoY], _Prior )
+		formatString: 0.00%
+		displayFolder: 02 Time Intelligence
+		lineageTag: bb0b97af-2324-4b63-a4a9-e874974ef0ba
+
+	/// Year-to-date cumulative net revenue.
+	measure 'Revenue YTD' = CALCULATE ( [Total Revenue], DATESYTD ( 'DimDate'[Date] ) )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: e34abe7e-9f5d-47d7-9ba7-669de5f34c10
+
+	/// Trailing three-month net revenue ending at the max selected date.
+	measure 'Revenue Rolling 3M' =
+			CALCULATE (
+			    [Total Revenue],
+			    DATESINPERIOD ( 'DimDate'[Date], MAX ( 'DimDate'[Date] ), -3, MONTH )
+			)
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: 62cc9f53-5234-4f80-b4a9-102aabe0e9d6
+
+	/// Total budgeted revenue across stores and months.
+	measure 'Budget Revenue' = SUM ( 'FactBudget'[BudgetRevenue] )
+		formatString: $#,##0.00
+		displayFolder: 03 Budget & Variance
+		lineageTag: 2a70ca9e-6f6b-4d5f-9e95-5caa7004ab22
+
+	/// Actual net revenue minus budgeted revenue.
+	measure 'Budget Variance' = [Total Revenue] - [Budget Revenue]
+		formatString: $#,##0.00
+		displayFolder: 03 Budget & Variance
+		lineageTag: a2d1dcfd-faf4-4e2a-bd63-00a9a722f108
+
+	/// Budget variance as a percentage of budgeted revenue.
+	measure 'Budget Variance %' = DIVIDE ( [Budget Variance], [Budget Revenue] )
+		formatString: 0.00%
+		displayFolder: 03 Budget & Variance
+		lineageTag: 46382b58-4822-48a9-b8da-cd31b33d3e76
+
+	/// Qualitative status comparing actual revenue against budget target.
+	measure 'Budget Attainment Status' =
+			VAR _VarPct = [Budget Variance %]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( _VarPct ), "No Budget",
+			        _VarPct >= 0, "On Target",
+			        _VarPct >= -0.05, "Watch",
+			        "Below Target"
+			    )
+		formatString: @
+		displayFolder: 04 KPI & Formatting
+		lineageTag: 2670587d-a24d-4242-a97b-f9a3cf8186b4
+
+	column _Placeholder
+		dataType: string
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: d0dbb2b7-1aac-4255-983d-134d3b7b2f48
+		summarizeBy: none
+		sourceColumn: _Placeholder
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Source = #table(type table [_Placeholder = nullable text], {})
+				in
+				    Source
+

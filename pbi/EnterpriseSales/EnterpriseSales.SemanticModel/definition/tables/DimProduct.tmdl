@@ -1,0 +1,83 @@
+/// Product catalog dimension with Category and Subcategory hierarchy.
+table DimProduct
+	lineageTag: eb6f794b-446a-469f-8cf3-9080eb0119c6
+
+	column ProductKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 1383c365-cc41-4482-b165-26bff2646274
+		summarizeBy: none
+		sourceColumn: ProductKey
+
+	column ProductSKU
+		dataType: string
+		lineageTag: 1d05f7c0-dc41-45fe-96f1-c62a013e5ba1
+		summarizeBy: none
+		sourceColumn: ProductSKU
+
+	column ProductName
+		dataType: string
+		lineageTag: dac84bfd-33c0-42b0-92f0-b2b4f363feca
+		summarizeBy: none
+		sourceColumn: ProductName
+
+	column Category
+		dataType: string
+		lineageTag: 235d70db-e8d5-495b-a57c-91a31a0fc532
+		summarizeBy: none
+		sourceColumn: Category
+
+	column Subcategory
+		dataType: string
+		lineageTag: c025dee1-0403-4100-858c-cdcaf6767757
+		summarizeBy: none
+		sourceColumn: Subcategory
+
+	column UnitPrice
+		dataType: decimal
+		formatString: $#,##0.00
+		lineageTag: 7079b2a1-36c7-4272-a2fc-cf0a40171bbf
+		summarizeBy: none
+		sourceColumn: UnitPrice
+
+	column UnitCost
+		dataType: decimal
+		formatString: $#,##0.00
+		lineageTag: cc2741ff-f74c-432e-a15a-51f189e8c061
+		summarizeBy: none
+		sourceColumn: UnitCost
+
+	hierarchy 'Product Hierarchy'
+		lineageTag: b543ed1c-2902-4f11-8211-0f0a073308fd
+
+		level Category
+			lineageTag: 55b58cb3-0ee1-4513-b1c2-95bc3cac9f21
+			column: Category
+
+		level Subcategory
+			lineageTag: 3b9c3d00-cc21-4484-a081-6ef41a8f2c47
+			column: Subcategory
+
+		level ProductName
+			lineageTag: 21cf1c5f-5663-4cf1-a5a1-ab25481e7f75
+			column: ProductName
+
+	partition DimProduct = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimProduct.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"ProductKey", Int64.Type},
+				        {"ProductSKU", type text},
+				        {"ProductName", type text},
+				        {"Category", type text},
+				        {"Subcategory", type text},
+				        {"UnitPrice", Currency.Type},
+				        {"UnitCost", Currency.Type}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

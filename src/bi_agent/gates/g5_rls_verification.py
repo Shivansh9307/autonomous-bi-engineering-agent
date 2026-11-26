@@ -153,7 +153,9 @@ def run_gate_g5(
 
         elif role.type == "dynamic":
             principals = role.test_principals or list(gt.by_sales_rep_upn.keys())
+            checked_local_upn_fail_closed = False
             for upn in principals:
+                impersonation_mode = "effective_user_name"
                 res = adomd_adapter.execute_dax(
                     target_port,
                     DYNAMIC_RLS_QUERY,
@@ -163,6 +165,67 @@ def run_gate_g5(
                     roles=role.name,
                     effective_user_name=upn,
                 )
+                if not res.ok and "CreateWithS4U" in (res.error or ""):
+                    if not checked_local_upn_fail_closed:
+                        checked_local_upn_fail_closed = True
+                        base_res = adomd_adapter.execute_dax(
+                            target_port,
+                            DYNAMIC_RLS_QUERY,
+                            config,
+                            repo_root,
+                            database=target_db,
+                            roles=role.name,
+                        )
+                        if not base_res.ok or not base_res.rows:
+                            findings.append(
+                                GateFinding(
+                                    severity="error",
+                                    code="G5_DYNAMIC_QUERY_FAILED",
+                                    message=(
+                                        f"Dynamic RLS baseline check failed for role "
+                                        f"'{role.name}': {base_res.error}"
+                                    ),
+                                )
+                            )
+                        else:
+                            base_row = base_res.rows[0]
+                            base_rows = int(float(_get_field(base_row, "RowCount") or 0))
+                            base_rev = float(_get_field(base_row, "TotalRevenue") or 0.0)
+                            base_ok = base_rows == 0
+                            if not base_ok:
+                                findings.append(
+                                    GateFinding(
+                                        severity="error",
+                                        code="G5_FAIL_OPEN_LEAK",
+                                        message=(
+                                            f"Local principal under role '{role.name}' saw "
+                                            f"{base_rows} rows (must fail closed to 0)."
+                                        ),
+                                    )
+                                )
+                            matrix.append(
+                                {
+                                    "role": role.name,
+                                    "type": "dynamic",
+                                    "principal": "<local_user>",
+                                    "impersonation_mode": "local_upn_fail_closed",
+                                    "actual_rows": base_rows,
+                                    "actual_revenue": base_rev,
+                                    "expected_rows": 0,
+                                    "status": "PASS" if base_ok else "FAIL",
+                                }
+                            )
+                    res = adomd_adapter.execute_dax(
+                        target_port,
+                        DYNAMIC_RLS_QUERY,
+                        config,
+                        repo_root,
+                        database=target_db,
+                        roles=role.name,
+                        custom_data=upn,
+                    )
+                    impersonation_mode = "custom_data_fallback"
+
                 if not res.ok or not res.rows:
                     findings.append(
                         GateFinding(
@@ -223,6 +286,7 @@ def run_gate_g5(
                         "role": role.name,
                         "type": "dynamic",
                         "principal": upn,
+                        "impersonation_mode": impersonation_mode,
                         "actual_rows": actual_rows,
                         "actual_revenue": actual_rev,
                         "expected_rows": expected.row_count if expected else 0,

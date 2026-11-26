@@ -1,0 +1,12 @@
+/// Dynamic fail-closed RLS filtering sales reps by UPN.
+role Dynamic_SalesRep
+	modelPermission: read
+
+	tablePermission DimSalesRep =
+			VAR _Custom = CUSTOMDATA ()
+			VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME () )
+			RETURN
+			    'DimSalesRep'[UserPrincipalName] = _Identity
+
+	annotation PBI_Id = 9355ea0834494680bb28da228178fa81
+

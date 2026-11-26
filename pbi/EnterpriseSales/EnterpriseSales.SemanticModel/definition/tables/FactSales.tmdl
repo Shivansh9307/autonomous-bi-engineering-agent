@@ -1,0 +1,148 @@
+/// Sales order line-item fact table.
+table FactSales
+	lineageTag: 7aa9bd42-2c7d-4d75-b7f7-2630f864814c
+
+	column SalesOrderID
+		dataType: string
+		lineageTag: b76fa929-0bbd-4945-b945-1c29783f4fd0
+		summarizeBy: none
+		sourceColumn: SalesOrderID
+
+	column OrderLineNumber
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: e6178573-edac-4dc2-b603-fb975624764f
+		summarizeBy: none
+		sourceColumn: OrderLineNumber
+
+	column DateKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: f5cca75d-856e-4e7a-9460-9f4210ebd140
+		summarizeBy: none
+		sourceColumn: DateKey
+
+	column ProductKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: b8f8b4f5-c35e-4270-966a-fe390df6156a
+		summarizeBy: none
+		sourceColumn: ProductKey
+
+	column StoreKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: c60b922e-82a9-4b97-8711-2a7c48e6d47b
+		summarizeBy: none
+		sourceColumn: StoreKey
+
+	column CustomerKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 94d48329-7e71-4c06-8ec2-76b67ff3a39e
+		summarizeBy: none
+		sourceColumn: CustomerKey
+
+	column SalesRepKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 71983ea1-1bb6-47de-8bc4-b027f7e11bbb
+		summarizeBy: none
+		sourceColumn: SalesRepKey
+
+	column Quantity
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 59258ce5-a796-414e-bc50-a351ea79752d
+		summarizeBy: none
+		sourceColumn: Quantity
+
+	column UnitPrice
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 4783eeba-56a7-4d41-900e-949bbcdf5fe0
+		summarizeBy: none
+		sourceColumn: UnitPrice
+
+	column UnitCost
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: a39d46c2-253c-41d8-b1be-7baf44d85a8a
+		summarizeBy: none
+		sourceColumn: UnitCost
+
+	column GrossAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 41d4d524-a007-482b-9c7d-74c52d0ab362
+		summarizeBy: none
+		sourceColumn: GrossAmount
+
+	column DiscountRate
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: e38bf0ea-8ae8-4d06-abc7-b281a4ec287b
+		summarizeBy: none
+		sourceColumn: DiscountRate
+
+	column DiscountAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 07c5af33-8bed-46ef-990b-bdbbdf3504f8
+		summarizeBy: none
+		sourceColumn: DiscountAmount
+
+	column NetRevenue
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 31b0943a-29eb-459d-a580-4b8ad59ab958
+		summarizeBy: none
+		sourceColumn: NetRevenue
+
+	column COGS
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 18adef58-6723-4fd6-acff-6999aef67985
+		summarizeBy: none
+		sourceColumn: COGS
+
+	partition FactSales = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\FactSales.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"SalesOrderID", type text},
+				        {"OrderLineNumber", Int64.Type},
+				        {"DateKey", Int64.Type},
+				        {"ProductKey", Int64.Type},
+				        {"StoreKey", Int64.Type},
+				        {"CustomerKey", Int64.Type},
+				        {"SalesRepKey", Int64.Type},
+				        {"Quantity", Int64.Type},
+				        {"UnitPrice", Currency.Type},
+				        {"UnitCost", Currency.Type},
+				        {"GrossAmount", Currency.Type},
+				        {"DiscountRate", Currency.Type},
+				        {"DiscountAmount", Currency.Type},
+				        {"NetRevenue", Currency.Type},
+				        {"COGS", Currency.Type}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

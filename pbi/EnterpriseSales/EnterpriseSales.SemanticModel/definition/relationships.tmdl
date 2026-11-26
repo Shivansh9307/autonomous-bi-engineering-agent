@@ -1,0 +1,28 @@
+relationship FactSales_DateKey_DimDate
+	fromColumn: FactSales.DateKey
+	toColumn: DimDate.DateKey
+
+relationship FactSales_ProductKey_DimProduct
+	fromColumn: FactSales.ProductKey
+	toColumn: DimProduct.ProductKey
+
+relationship FactSales_StoreKey_DimStore
+	fromColumn: FactSales.StoreKey
+	toColumn: DimStore.StoreKey
+
+relationship FactSales_CustomerKey_DimCustomer
+	fromColumn: FactSales.CustomerKey
+	toColumn: DimCustomer.CustomerKey
+
+relationship FactSales_SalesRepKey_DimSalesRep
+	fromColumn: FactSales.SalesRepKey
+	toColumn: DimSalesRep.SalesRepKey
+
+relationship FactBudget_DateKey_DimDate
+	fromColumn: FactBudget.DateKey
+	toColumn: DimDate.DateKey
+
+relationship FactBudget_StoreKey_DimStore
+	fromColumn: FactBudget.StoreKey
+	toColumn: DimStore.StoreKey
+

@@ -1,0 +1,75 @@
+/// Store and regional geography dimension for NA, EMEA, and APAC.
+table DimStore
+	lineageTag: 4429d3ff-837b-4d7c-b1b4-612d46778fbb
+
+	column StoreKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 2adf562d-d898-4338-9399-94c41184f21a
+		summarizeBy: none
+		sourceColumn: StoreKey
+
+	column StoreCode
+		dataType: string
+		lineageTag: 24a52fa9-7621-47d9-823e-77a0c7c3e17a
+		summarizeBy: none
+		sourceColumn: StoreCode
+
+	column StoreName
+		dataType: string
+		lineageTag: 9c0610f7-dd5f-45d5-ab79-f2d548ad5a1c
+		summarizeBy: none
+		sourceColumn: StoreName
+
+	column Region
+		dataType: string
+		lineageTag: 9f1bc941-372a-44a8-86fc-f815e8da6a10
+		summarizeBy: none
+		sourceColumn: Region
+
+	column Country
+		dataType: string
+		lineageTag: 296e5dd3-13ae-4b28-9663-4fe673d223d4
+		dataCategory: Country
+		summarizeBy: none
+		sourceColumn: Country
+
+	column Channel
+		dataType: string
+		lineageTag: 243933a5-338a-45d2-9dc7-9343e9ff2e02
+		summarizeBy: none
+		sourceColumn: Channel
+
+	hierarchy 'Geography Hierarchy'
+		lineageTag: 72b51253-bb55-4470-be98-7edc39a03069
+
+		level Region
+			lineageTag: c2fa819c-87c0-4065-a08a-4ebad22359f6
+			column: Region
+
+		level Country
+			lineageTag: 997f4068-5f98-4ff0-962b-cbe3d15a0cbb
+			column: Country
+
+		level StoreName
+			lineageTag: 5d9445c8-4875-4832-978c-8c745a476deb
+			column: StoreName
+
+	partition DimStore = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimStore.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"StoreKey", Int64.Type},
+				        {"StoreCode", type text},
+				        {"StoreName", type text},
+				        {"Region", type text},
+				        {"Country", type text},
+				        {"Channel", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

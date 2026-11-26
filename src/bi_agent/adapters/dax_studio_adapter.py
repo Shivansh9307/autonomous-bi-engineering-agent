@@ -143,10 +143,16 @@ def _parse_benchmark_csv(csv_path: Path) -> tuple[float | None, float | None]:
         reader = csv.DictReader(handle)
         for row in reader:
             lowered = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
+            seq_val = lowered.get("sequence", "")
+            if seq_val.startswith("#") or seq_val.lower() == "cache":
+                break
             cache_mode = lowered.get("cache", lowered.get("type", "")).lower()
             dur_str = lowered.get(
-                "totalduration",
-                lowered.get("durationms", lowered.get("totalms", lowered.get("duration", ""))),
+                "totalduration_ms",
+                lowered.get(
+                    "totalduration",
+                    lowered.get("durationms", lowered.get("totalms", lowered.get("duration", ""))),
+                ),
             )
             if not dur_str:
                 continue
@@ -158,8 +164,8 @@ def _parse_benchmark_csv(csv_path: Path) -> tuple[float | None, float | None]:
                 cold_vals.append(dur)
             elif "warm" in cache_mode:
                 warm_vals.append(dur)
-    cold_avg = sum(cold_vals) / len(cold_vals) if cold_vals else None
-    warm_avg = sum(warm_vals) / len(warm_vals) if warm_vals else None
+    cold_avg = round(sum(cold_vals) / len(cold_vals), 2) if cold_vals else None
+    warm_avg = round(sum(warm_vals) / len(warm_vals), 2) if warm_vals else None
     return cold_avg, warm_avg
 
 
@@ -186,9 +192,9 @@ def run_benchmark(
             database,
             "-f",
             str(dax_file),
-            "-c",
+            "--cold",
             str(cold_runs),
-            "-w",
+            "--warm",
             str(warm_runs),
         ],
         timeout=config.timeouts_seconds.dscmd,

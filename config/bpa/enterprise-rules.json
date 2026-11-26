@@ -150,7 +150,7 @@
         "Description": "Avoid FILTER(ALL(...)) inside iterators or CALCULATE; prefer direct boolean column filters or KEEPFILTERS.",
         "Severity": 2,
         "Scope": "Measure, CalculatedColumn",
-        "Expression": "RegEx.IsMatch(Expression, \"FILTER\\\\s*\\\\(\\\\s*ALL\\\\s*\\\\(\")",
+        "Expression": "RegEx.IsMatch(Expression, \"FILTER\\s*\\(\\s*ALL\\s*\\(\")",
         "CompatibilityLevel": 1200
     }
 ]

@@ -20,7 +20,7 @@ gates:
   dax_numeric_tolerance: 0.01
   perf_budget_cold_ms: 1500
   perf_budget_warm_ms: 500
-  desktop_screenshot_settle_ms: 750
+  desktop_screenshot_settle_ms: 3500
 
 project:
   pbip_project_dir: "pbi/EnterpriseSales"

@@ -1,0 +1,8 @@
+/// Static RLS restricting data to EMEA stores.
+role Region_EMEA
+	modelPermission: read
+
+	tablePermission DimStore = 'DimStore'[Region] = "EMEA"
+
+	annotation PBI_Id = a0973f0958d84f9b897c3b5a8a42be33
+

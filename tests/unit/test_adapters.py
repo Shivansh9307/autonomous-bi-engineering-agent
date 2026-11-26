@@ -145,6 +145,46 @@ def test_adomd_and_pbir_adapters_mocked(tmp_path: Path, monkeypatch: pytest.Monk
     assert qres.ok is True
     assert qres.rows[0]["[TotalRevenue]"] == 48744150.82
 
+    captured_cmds: list[list[str]] = []
+
+    def _capture_execute(args: list[str], **_kw: object) -> CommandResult:
+        captured_cmds.append(args)
+        return CommandResult(
+            returncode=0,
+            stdout=json.dumps({"ok": True, "duration_ms": 5, "columns": [], "rows": []}),
+        )
+
+    monkeypatch.setattr(adomd_adapter, "run_command", _capture_execute)
+    adomd_adapter.execute_dax(
+        51234,
+        "EVALUATE ROW(\"RowCount\", 1)",
+        ToolchainConfig(),
+        repo,
+        roles="Dynamic_SalesRep",
+        custom_data="alice.emea@contoso.com",
+    )
+    assert "-CustomData" in captured_cmds[0]
+    assert "alice.emea@contoso.com" in captured_cmds[0]
+
+    monkeypatch.setattr(dax_studio_adapter, "resolve_dscmd", lambda _cfg: "dscmd.exe")
+    bench_cmds: list[list[str]] = []
+    bench_csv = tmp_path / "bench.csv"
+    bench_csv.write_text("Cache,TotalDuration\nCold,120\nWarm,35\n", encoding="utf-8")
+
+    def _capture_bench(args: list[str], **_kw: object) -> CommandResult:
+        bench_cmds.append(args)
+        return CommandResult(returncode=0, stdout="")
+
+    monkeypatch.setattr(dax_studio_adapter, "run_command", _capture_bench)
+    bres = dax_studio_adapter.run_benchmark(
+        "localhost:50009", "EnterpriseSales", tmp_path / "q.dax", bench_csv, ToolchainConfig()
+    )
+    assert bres.ok is True
+    assert "--cold" in bench_cmds[0]
+    assert "--warm" in bench_cmds[0]
+    assert "-c" not in bench_cmds[0]
+    assert "-w" not in bench_cmds[0]
+
     shots_dir = tmp_path / "shots"
     shots_dir.mkdir()
     shot_file = shots_dir / "Executive_Overview.png"
@@ -165,6 +205,34 @@ def test_adomd_and_pbir_adapters_mocked(tmp_path: Path, monkeypatch: pytest.Monk
     assert sres.ok is True
     assert len(sres.screenshots) == 1
     assert sres.screenshots[0].size_bytes > 1024
+
+
+def test_parse_benchmark_csv_dscmd_v3_format(tmp_path: Path) -> None:
+    csv_path = tmp_path / "benchmark_results.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "Sequence,Cache,TotalDuration_ms,FormulaEngineDuration_ms,StorageEngineDuration_ms",
+                "1,Cold,8,6,2",
+                "2,Cold,10,0,0",
+                "3,Warm,10,10,0",
+                "4,Warm,5,5,0",
+                "5,Warm,11,0,0",
+                "",
+                "# Summary",
+                "Cache,Statistic,TotalDuration_ms",
+                "Cold,Average,9.0",
+                "Cold,StdDev,1.4",
+                "Warm,Average,8.7",
+                "Warm,Max,11.0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cold_avg, warm_avg = dax_studio_adapter._parse_benchmark_csv(csv_path)
+    assert cold_avg == 9.0
+    assert warm_avg == pytest.approx(8.67, abs=0.01)
 
 
 def _git(repo: Path, *args: str) -> str:

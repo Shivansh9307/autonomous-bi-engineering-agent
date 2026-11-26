@@ -124,7 +124,7 @@ rls_roles:
   - name: Dynamic_SalesRep
     type: dynamic
     table: DimSalesRep
-    filter: "'DimSalesRep'[UserPrincipalName] = USERPRINCIPALNAME()"
+    filter: 'VAR _Custom = CUSTOMDATA() VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME() ) RETURN ''DimSalesRep''[UserPrincipalName] = _Identity'
     expected_fail_closed: true
     test_principals:
       - alice.emea@contoso.com

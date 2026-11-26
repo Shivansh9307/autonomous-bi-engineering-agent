@@ -1,0 +1,52 @@
+/// Sales representative dimension supporting dynamic UPN row-level security.
+table DimSalesRep
+	lineageTag: cae055b9-8b6d-41d2-93a9-6bcf98f170d2
+
+	column SalesRepKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 41d1fce0-2490-459c-b3ef-c3b4cc024200
+		summarizeBy: none
+		sourceColumn: SalesRepKey
+
+	column RepName
+		dataType: string
+		lineageTag: 9ac235a6-1021-4898-bc0f-56b34a0424f7
+		summarizeBy: none
+		sourceColumn: RepName
+
+	column Region
+		dataType: string
+		lineageTag: 84f08faf-f235-44f7-a03e-b45a67942554
+		summarizeBy: none
+		sourceColumn: Region
+
+	column UserPrincipalName
+		dataType: string
+		lineageTag: 59928b39-b8e3-4d2a-b4d3-85e07497d788
+		summarizeBy: none
+		sourceColumn: UserPrincipalName
+
+	column ManagerUPN
+		dataType: string
+		lineageTag: 3316397a-8241-4f1b-9b40-72b3fd3e9dc9
+		summarizeBy: none
+		sourceColumn: ManagerUPN
+
+	partition DimSalesRep = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimSalesRep.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"SalesRepKey", Int64.Type},
+				        {"RepName", type text},
+				        {"Region", type text},
+				        {"UserPrincipalName", type text},
+				        {"ManagerUPN", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

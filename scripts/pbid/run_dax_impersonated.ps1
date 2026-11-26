@@ -4,6 +4,7 @@ param(
     [string]$Database = "",
     [string]$Roles = "",
     [string]$EffectiveUserName = "",
+    [string]$CustomData = "",
     [string]$AdomdDir = "",
     [int]$CommandTimeoutSeconds = 60
 )
@@ -39,6 +40,7 @@ try {
     if ($Database) { $parts += "Initial Catalog=$Database" }
     if ($Roles) { $parts += "Roles=$Roles" }
     if ($EffectiveUserName) { $parts += "EffectiveUserName=$EffectiveUserName" }
+    if ($CustomData) { $parts += "CustomData=$CustomData" }
     $connStr = ($parts -join ";") + ";"
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
