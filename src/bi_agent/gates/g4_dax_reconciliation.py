@@ -741,7 +741,11 @@ def run_gate_g4(
 
     assertions_checked = sum(1 for c in checks if c.get("status") in ("PASS", "FAIL"))
 
-    perf_metrics: dict[str, Any] = {"benchmark_skipped": skip_benchmark}
+    perf_metrics: dict[str, Any] = {
+        "benchmark_skipped": skip_benchmark,
+        "cold_budget_ms": config.gates.perf_budget_cold_ms,
+        "warm_budget_ms": config.gates.perf_budget_warm_ms,
+    }
     artifacts: list[str] = []
     if not skip_benchmark and target_db:
         run_dir = output_dir or (repo_root / "artifacts" / "runs" / "ad-hoc")
@@ -754,6 +758,8 @@ def run_gate_g4(
         )
         perf_metrics["cold_avg_ms"] = bench.cold_avg_ms
         perf_metrics["warm_avg_ms"] = bench.warm_avg_ms
+        perf_metrics["cold_max_ms"] = bench.cold_max_ms
+        perf_metrics["warm_max_ms"] = bench.warm_max_ms
         if csv_file.is_file():
             artifacts.append(str(csv_file))
         if not bench.ok:

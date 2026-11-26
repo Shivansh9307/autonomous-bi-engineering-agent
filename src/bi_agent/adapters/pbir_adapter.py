@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,12 @@ from pydantic import BaseModel, Field
 
 from bi_agent.adapters._subprocess import resolve_pbir, run_command
 from bi_agent.config import ToolchainConfig
+
+_TRANSIENT_BRIDGE_MARKERS = (
+    "host is not ready",
+    "is unreachable",
+    "still loading",
+)
 
 
 class PbirValidateResult(BaseModel):
@@ -96,12 +103,15 @@ def desktop_refresh(
     report_dir: Path,
     config: ToolchainConfig,
     include_model: bool = True,
+    wait_seconds: float | None = 15.0,
 ) -> DesktopRefreshResult:
     """Reload report and optionally model definition into the Desktop canvas."""
     pbir_bin = resolve_pbir(config)
     cmd = [pbir_bin, "desktop", "refresh", str(report_dir)]
     if include_model:
         cmd.append("-m")
+    if wait_seconds is not None:
+        cmd.extend(["--wait-seconds", str(wait_seconds)])
     res = run_command(cmd, timeout=config.timeouts_seconds.pbir)
     return DesktopRefreshResult(
         ok=res.returncode == 0,
@@ -117,6 +127,8 @@ def desktop_screenshot(
     config: ToolchainConfig,
     settle_ms: int | None = None,
     min_bytes: int = 1024,
+    max_retries: int = 5,
+    retry_delay_seconds: float = 2.0,
 ) -> DesktopScreenshotResult:
     """Capture screenshots for all pages and verify PNG files exist and exceed min_bytes."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -134,7 +146,16 @@ def desktop_screenshot(
         str(settle),
         "--json",
     ]
-    res = run_command(cmd, timeout=config.timeouts_seconds.pbir)
+    for attempt in range(max_retries + 1):
+        res = run_command(cmd, timeout=config.timeouts_seconds.pbir)
+        if res.returncode == 0:
+            break
+        lower_out = res.combined_output.lower()
+        is_transient = any(marker in lower_out for marker in _TRANSIENT_BRIDGE_MARKERS)
+        if attempt < max_retries and is_transient:
+            time.sleep(retry_delay_seconds)
+            continue
+        break
     if res.returncode != 0:
         return DesktopScreenshotResult(
             ok=False,

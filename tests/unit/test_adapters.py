@@ -180,6 +180,10 @@ def test_adomd_and_pbir_adapters_mocked(tmp_path: Path, monkeypatch: pytest.Monk
         "localhost:50009", "EnterpriseSales", tmp_path / "q.dax", bench_csv, ToolchainConfig()
     )
     assert bres.ok is True
+    assert bres.cold_avg_ms == 120.0
+    assert bres.warm_avg_ms == 35.0
+    assert bres.cold_max_ms == 120.0
+    assert bres.warm_max_ms == 35.0
     assert "--cold" in bench_cmds[0]
     assert "--warm" in bench_cmds[0]
     assert "-c" not in bench_cmds[0]
@@ -246,9 +250,11 @@ def test_parse_benchmark_csv_dscmd_v3_format(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    cold_avg, warm_avg = dax_studio_adapter._parse_benchmark_csv(csv_path)
+    cold_avg, warm_avg, cold_max, warm_max = dax_studio_adapter._parse_benchmark_csv(csv_path)
     assert cold_avg == 9.0
     assert warm_avg == pytest.approx(8.67, abs=0.01)
+    assert cold_max == 10.0
+    assert warm_max == 11.0
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -307,3 +313,63 @@ def test_git_adapter_tree_sha_and_commit_gating(tmp_path: Path) -> None:
     good_bundle.write_json(ev_path)
     ok_res = git_adapter.commit_verified(repo, "feat(REQ-001): add pbip", evidence_path=ev_path)
     assert ok_res.returncode == 0
+
+
+def test_desktop_screenshot_retries_transient_bridge_not_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shots_dir = tmp_path / "shots"
+    shots_dir.mkdir()
+    shot_file = shots_dir / "Executive_Overview.png"
+    shot_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 2048)
+
+    monkeypatch.setattr(pbir_adapter, "resolve_pbir", lambda _cfg: "pbir")
+
+    calls_transient = 0
+
+    def _mock_transient(*_a: object, **_kw: object) -> CommandResult:
+        nonlocal calls_transient
+        calls_transient += 1
+        if calls_transient == 1:
+            return CommandResult(
+                returncode=1,
+                stderr=(
+                    "Warning: Desktop bridge PID 16716 is unreachable: "
+                    "application.state.get/v1: Host is not ready to accept operations"
+                ),
+            )
+        return CommandResult(
+            returncode=0,
+            stdout=json.dumps(
+                {"screenshots": [{"path": str(shot_file), "page": "Executive_Overview"}]}
+            ),
+        )
+
+    monkeypatch.setattr(pbir_adapter, "run_command", _mock_transient)
+    sres = pbir_adapter.desktop_screenshot(
+        tmp_path / "Rep.Report",
+        shots_dir,
+        ToolchainConfig(),
+        max_retries=3,
+        retry_delay_seconds=0.0,
+    )
+    assert sres.ok is True
+    assert calls_transient == 2
+
+    calls_fatal = 0
+
+    def _mock_fatal(*_a: object, **_kw: object) -> CommandResult:
+        nonlocal calls_fatal
+        calls_fatal += 1
+        return CommandResult(returncode=1, stderr="Error: invalid report path")
+
+    monkeypatch.setattr(pbir_adapter, "run_command", _mock_fatal)
+    fres = pbir_adapter.desktop_screenshot(
+        tmp_path / "Rep.Report",
+        shots_dir,
+        ToolchainConfig(),
+        max_retries=3,
+        retry_delay_seconds=0.0,
+    )
+    assert fres.ok is False
+    assert calls_fatal == 1

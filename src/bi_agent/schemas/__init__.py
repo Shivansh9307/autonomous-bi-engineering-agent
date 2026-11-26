@@ -5,6 +5,7 @@ from bi_agent.schemas.evidence import (
     GateResult,
     GateStatus,
     VerificationEvidenceBundle,
+    to_repo_relative_posix,
 )
 from bi_agent.schemas.model_spec import (
     DimensionalModelSpec,
@@ -70,4 +71,5 @@ __all__ = [
     "load_ground_truth",
     "load_requirement",
     "parse_relationship_dsl",
+    "to_repo_relative_posix",
 ]

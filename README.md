@@ -1,149 +1,136 @@
 # Autonomous BI Engineering Agent System
 
-A verification-first Autonomous BI Engineering Agent system for Power BI (`PBIP` / `TMDL` / `PBIR`). Given a structured business requirement (`requirements/*.yaml`), it validates the Kimball star-schema contract, authors or updates the semantic model and DAX/RLS definitions through a strict tool cascade, builds PBIR report pages exclusively via the `pbir` CLI, verifies every layer empirically across **7 deterministic gates (`G1`–`G7`)**, and permits commits only when a fresh `VerificationEvidenceBundle` matches the staged Git index tree SHA.
+**Governed Power BI (`PBIP` / `TMDL` / `PBIR`) engineering & Commercial Finance showcase — `$48.74M` Net Revenue, `$16.47M` Gross Margin (`33.80%`), empirically verified across 7 deterministic gates.**
 
-## Architecture
+[![BI CI](https://img.shields.io/github/actions/workflow/status/Shivansh9307/autonomous-bi-engineering-agent/bi-ci.yml?branch=main&label=BI%20CI)](https://github.com/Shivansh9307/autonomous-bi-engineering-agent/actions/workflows/bi-ci.yml)
+![Power BI PBIP TMDL PBIR](https://img.shields.io/badge/Power%20BI-PBIP%20%7C%20TMDL%20%7C%20PBIR-F2C811?logo=powerbi&logoColor=black)
+![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-```text
-requirements/REQ-*.yaml
-        │
-        ▼
-workflows/bi_delivery (audit | deliver)
-   ├─► Gate G1: Pydantic Design Contract
-   ├─► Semantic Model Cascade:
-   │      powerbi-modeling-mcp ─► TabularEditor.exe ─► PowerShell TOM/ADOMD ─► .tmdl (last resort)
-   ├─► PBIR Report Authoring:
-   │      pbir CLI exclusively (PreToolUse hook blocks direct *.Report/definition/**/*.json writes)
-   ├─► Parallel Specialist Auditors (Model & DAX Hygiene + Report & Governance)
-   └─► 7-Gate Verification Harness (`bi-agent verify-all`)
-          └─► artifacts/runs/<REQ-ID>/verification-report.{json,md} (bound to `git write-tree`)
-                 └─► `bi-agent git-commit` (evidence-gated & Conventional Commits)
-```
+---
 
-## 7-Gate Verification Matrix
+## Business Problem
 
-| Gate | Name | Tooling & Checks | Pass Criteria | Mode |
-| :--- | :--- | :--- | :--- | :--- |
-| **G1** | Design Contract | `bi_agent.schemas` (Pydantic v2) | Valid `1:*` `Single` star schema, grain, KPI specs, and multi-fact fail-closed RLS coverage | CI & Local |
-| **G2** | PBIP & TMDL Structure | `validate_pbip.py` + `TabularEditor.exe` TMDL load | `0` PBIP errors and clean TE2 TMDL parse | CI & Local |
-| **G3** | BPA & VertiPaq Audit | `TabularEditor.exe -A config/bpa/enterprise-rules.json -G` + `dscmd vpax` | `0` BPA Error violations (`15` enterprise rules); VPAX telemetry exported when online | Offline BPA in CI; +VPAX Live |
-| **G4** | Live DAX Reconciliation & Perf | ADOMD.NET (`scripts/pbid/run_dax_impersonated.ps1`) + `dscmd benchmark` | `51` DAX assertions within `±0.01` (incl. accounting tie-out, cross-grain blank, no-actuals); cold `<=1500ms`, warm `<=500ms` | Live Desktop (`SKIP` in `--offline`) |
-| **G5** | Live RLS Impersonation | Offline TMDL RLS audit (`--offline`) + ADOMD.NET `Roles` / `EffectiveUserName` / `CustomData` | Zero cross-fact leaks (`FactSales` + `FactBudget = 0` for `Dynamic_SalesRep`); `0` rows for unauthorized & `<local_user>` | Offline Contract Audit in CI; +Live ADOMD |
-| **G6** | Report QA & Desktop Render | `pbir validate [--all]` + `pbir desktop refresh -m` + `pbir desktop screenshot --all` | Exit `0` validation; Desktop refresh & non-empty page PNGs inspected when online | Offline `pbir validate` in CI; +PNGs Live |
-| **G7** | Git Governance & Tree Binding | `git write-tree` + `bi_agent.adapters.git_adapter` | Evidence `git_tree_sha` matches staged index SHA; Conventional Commit & branch guard | CI & Local |
+Commercial Finance leaders require accurate margin-mix visibility, store-level budget accountability, and discount leakage tracking across **$53.12M** Gross Revenue and **$48.74M** Net Revenue (`$16.47M` Gross Margin at `33.80%` GM%, `-$646.56K` Budget Variance across `25,000` sales lines, `12,500` orders, `113,110` units, and `300` active customers).
 
-## Delivered Showcase (`pbi/EnterpriseSales`)
+In practice, conventional BI delivery fails silently through unverified DAX drift, cross-grain store-budget inflation, and multi-fact Row-Level Security (RLS) leaks. This system combines multi-agent Power BI orchestration (`workflows/bi_delivery`) with a **7-gate verification harness (`G1`–`G7`)** that blocks unverified PBIR edits at runtime and binds every Git commit to passing empirical evidence.
 
-- **Semantic Model (`pbi/EnterpriseSales/EnterpriseSales.SemanticModel/`):**
-  - `8` tables (`DimDate`, `DimProduct`, `DimStore`, `DimCustomer`, `DimSalesRep`, `FactSales`, `FactBudget`, `_Measures`)
-  - `7` `1:*` `Single`-direction relationships (`FactSales` 5-dim star + `FactBudget` 2-dim conformance)
-  - `3` hierarchies (`Calendar Hierarchy`, `Product Hierarchy`, `Geography Hierarchy`) and `DimDate` marked as date table (`Date`)
-  - `20` documented KPIs across `5` display folders (`01 Revenue & Margin`, `02 Time Intelligence`, `03 Budget & Variance`, `04 KPI & Formatting`, `05 Customer Analytics`)
-  - `4` fail-closed RLS roles (`Region_NA`, `Region_EMEA`, `Region_APAC`, `Dynamic_SalesRep`)
-- **PBIR Report (`pbi/EnterpriseSales/EnterpriseSales.Report/`):**
-  - `4` pages (`Executive Overview`, `Regional Margin Analysis`, `Product Detail`, `Customer & Discounts`) with `44` visuals built exclusively via `pbir` CLI
+---
 
-## Prerequisites & Quickstart
+## Top 3 Quantified Commercial Finance Insights
 
-- **OS:** Windows 11 (for Power BI Desktop / ADOMD / `dscmd` live gates `G3` VPAX, `G4`, `G5`, `G6` screenshots; offline CI gates run on `ubuntu-latest` + `windows-latest`)
-- **Toolchain:** Python `>=3.12`, [`uv`](https://docs.astral.sh/uv/), Git, [`pbir-cli`](.agents/skills/pbir-cli/SKILL.md), Tabular Editor 2 (`TabularEditor.exe`), DAX Studio (`dscmd.exe` + `Microsoft.AnalysisServices.AdomdClient.dll`), Power BI Desktop + `powerbi-modeling-mcp`
+| Metric | Portfolio Actual (2024–2026) | Metric | Portfolio Actual (2024–2026) |
+| :--- | ---: | :--- | ---: |
+| **Gross Revenue** | `$53,117,840.90` (`$53.12M`) | **Budget Revenue** | `$49,390,714.25` (`$49.39M`) |
+| **Total Discount / Rate** | `$4,373,690.08` (`8.23%`) | **Budget Variance** | `-$646,563.43` (`-1.31%`, *Watch*) |
+| **Net Revenue (`Total Revenue`)** | `$48,744,150.82` (`$48.74M`) | **Gross Margin / GM%** | `$16,474,615.86` (`33.80%`) |
+| **Total COGS** | `$32,269,534.96` (`$32.27M`) | **AOV / Rev per Customer** | `$3,899.53` / `$162,480.50` |
 
-```powershell
-uv sync --group dev
-uv run bi-agent doctor
-uv run python scripts/generate_sample_data.py
-```
+### 1. Revenue vs. Margin Dilution (`905 bps` Category Spread & SKU Inversion)
+- **Category Mix:** `Connected Devices` leads margin at **`37.02%`** (`$3.94M` GM on `$10.65M`), followed by `Accessories` (`35.28%` on `$10.50M`), `Cloud Hardware` (`34.52%` on `$11.80M`), `Managed Services` (`31.55%` on `$9.40M`), and `Enterprise Software` at **`27.97%`** (`$1.79M` on `$6.40M`) — a **`905 bps`** (`9.05 pp`) spread.
+- **SKU Margin Inversion:** #1 revenue SKU `Edge Gateways Model 41` (`$1.85M` rev, **`25.39%`** GM, `$470.90K` GM, `8.86%` discount) generates **`$164.08K` less gross profit** than #2 `Docks & Cables Model 37` (`$1.68M` rev, **`37.84%`** GM, `$634.99K` GM).
 
-## CLI & Workflow Reference
+### 2. Concentrated Store-Level Budget Leakage (`-$646.56K` / `-1.31%`)
+- **Regional Drag:** `17` of `18` stores miss budget (only `1` positive at `+$9.05K`); `EMEA` leads the drag at **`-1.61%`** (`-$264.78K` vs. `$16.43M` budget), ahead of `NA` (`-1.32%` / `-$215.99K`) and `APAC` (`-1.00%` / `-$165.79K`).
+- **Bottom-5 Concentration (`44.0%` of Net Miss / `-$284.61K`):** `Dubai DIFC` (`-$67.86K`, `-2.51%`), `San Francisco Embarcadero` (`-$59.02K`, `-2.16%`), `Amsterdam Zuid` (`-$55.58K`, `-2.07%`), `Sydney George St` (`-$51.71K`, `-1.86%`), and `Berlin Mitte` (`-$50.43K`, `-1.82%`) — `3` of `5` in `EMEA`.
 
-```powershell
-# Toolchain diagnostics
-uv run bi-agent doctor [--json]
+### 3. Discounting Drag on Net Realization (`$4.37M` = `6.8×` Budget Shortfall)
+- **Portfolio Leakage:** An `8.23%` discount rate removes **`$4.37M`** from `$53.12M` Gross Revenue to net `$48.74M` (`Gross - Discount = Net`, diff `0.00`) — **`6.8×`** larger than the global budget variance (`-$646.56K`).
+- **Category & Subcategory Drivers:** `Managed Services` is the highest-discounting category (**`8.47%`**, `$870.14K`) while trailing portfolio margin (`31.55%` GM%), led by subcategories `Support Plans` (**`8.60%`**, `$439.31K`) and `Onboarding Packs` (**`8.34%`**, `$430.83K`).
 
-# Individual gates
-uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
-uv run bi-agent verify-model [--offline]
-uv run bi-agent verify-dax
-uv run bi-agent verify-rls --requirement requirements/REQ-002-customer-discount-analytics.yaml
-uv run bi-agent verify-report [--offline]
+---
 
-# Full 7-gate evidence bundle (live Desktop or --offline for CI/headless)
-uv run bi-agent verify-all --req-id REQ-002 --requirement requirements/REQ-002-customer-discount-analytics.yaml [--offline]
+## Executive Dashboard Gallery (`REQ-002`)
 
-# Evidence-gated commit (requires staged tree SHA match in verification-report.json)
-uv run bi-agent git-commit --evidence artifacts/runs/REQ-002/verification-report.json -m "feat(REQ-002): deliver verified BI requirement"
-```
-
-Multi-agent orchestration lives in [`workflows/bi_delivery/`](workflows/bi_delivery/workflow.py) (`workflow.json` + `workflow.py`) with two modes:
-- `audit` (default): Runs Gate `G1` plus parallel specialist `research` auditors (`Model & DAX Hygiene Auditor` and `Report & Governance Auditor`) without mutating files.
-- `deliver`: Runs `G1`, model/RLS delivery, PBIR report delivery, parallel specialist audits, `G1`–`G7` verification, and optional `bi-agent git-commit`.
-
-## Testing, Guardrails & CI
-
-```powershell
-uv run ruff check --no-cache src tests scripts
-uv run pytest tests/unit -p no:cacheprovider -v
-uv run pytest tests/fault_injection -p no:cacheprovider -v
-```
-
-- **Runtime Guardrails:** [`.agents/hooks.json`](.agents/hooks.json) enforces [`pre_tool_guard.py`](src/bi_agent/hooks/pre_tool_guard.py) (blocking direct writes to `*.Report/definition/**/*.json` and unverified `git commit` calls) and [`post_tool_audit.py`](src/bi_agent/hooks/post_tool_audit.py).
-- **GitHub Actions CI:** [`.github/workflows/bi-ci.yml`](.github/workflows/bi-ci.yml) runs `ruff`, `pytest tests/unit`, and `G1` on `ubuntu-latest`, plus `pbir-cli`, Tabular Editor 2 Portable, `bi-agent verify-all --offline` (`REQ-001` & `REQ-002`), and `pytest tests/fault_injection` on `windows-latest`.
-
-## Finance Modeling Safeguards
-
-- **Multi-Fact Fail-Closed RLS (`Dynamic_SalesRep` -> `FactBudget` Deny):** `Dynamic_SalesRep` filters `DimSalesRep` by UPN and explicitly sets `tablePermission FactBudget = FALSE ()` so sales representatives and unauthorized principals see `0` rows across both `FactSales` and `FactBudget`. Enforced offline by `G1` + `G5` (`--offline`) and empirically by live ADOMD Gate `G5`. See [ADR-0006](docs/adr/0006-customdata-rls-testing-shim-and-service-hardening.md) for the mandatory pre-publish rule stripping `CUSTOMDATA()` precedence before Power BI Service deployment.
-- **Cross-Grain Budget Suppression:** `[Budget Revenue]` uses `ISCROSSFILTERED('DimProduct') || ISCROSSFILTERED('DimCustomer') || ISCROSSFILTERED('DimSalesRep')` to return `BLANK()` below `DimDate`/`DimStore` grain, preventing misleading store-budget repetition.
-- **Blank-Safe Variance & Attainment Status:** `[Budget Variance]` returns `BLANK()` unless both `[Total Revenue]` and `[Budget Revenue]` are non-blank, and `[Budget Attainment Status]` distinguishes `"No Budget"` (`ISBLANK(_Budget) || _Budget = 0`) from `"No Actuals"` (`ISBLANK(_Actual)`).
-- **Actuals-Cutoff Time Intelligence:** `[Revenue YoY]` requires both current and prior revenue to be non-blank; `[Revenue YTD]` suppresses periods past `MAX('FactSales'[DateKey])`; `[Revenue Rolling 3M]` suppresses past actuals and clamps its `DATESINPERIOD` anchor date to `MIN(MAX('DimDate'[Date]), _LastActualDate)`.
-- **Accounting Tie-Out Assertions (Gate G4):** Reconciles `[Total Revenue] = [Gross Revenue] - [Total Discount]` within `±0.01` alongside cross-grain `BLANK()` checks and `"No Actuals"` / `"No Budget"` status assertions.
-
-## Authored IP vs. Vendored Skills
-
-| Layer | Paths | Provenance | Purpose |
-| :--- | :--- | :--- | :--- |
-| Verification Engine & CLI | [`src/bi_agent/`](src/bi_agent/cli.py), [`scripts/`](scripts/generate_sample_data.py) | **Authored IP** | Pydantic v2 contracts, 6 adapters, Gates `G1`–`G7`, PreToolUse/PostToolUse hooks, synthetic data + ground truth |
-| Multi-Agent Orchestrator | [`workflows/bi_delivery/`](workflows/bi_delivery/workflow.py) | **Authored IP** | `run_workflow` staged `audit` and `deliver` pipeline with parallel specialist auditors |
-| Enterprise Governance & Rules | [`.agents/rules/`](.agents/rules/bi-verification-gate.md), [`.agents/hooks.json`](.agents/hooks.json), [`config/bpa/`](config/bpa/enterprise-rules.json), [`.github/workflows/bi-ci.yml`](.github/workflows/bi-ci.yml) | **Authored IP** | Tool cascade, PBIR CLI exclusivity, 15 CRLF TE2 BPA rules, offline CI pipeline |
-| Test Suites & ADRs | [`tests/`](tests/fault_injection/test_fault_injection.py), [`docs/adr/`](docs/adr/README.md), [`requirements/`](requirements/REQ-002-customer-discount-analytics.yaml) | **Authored IP** | Unit tests, 9 fail-closed fault-injection tests, 6 ADRs, YAML contracts |
-| Showcase PBIP & Report | [`pbi/EnterpriseSales/`](pbi/EnterpriseSales/EnterpriseSales.pbip) | **Authored IP** | 8-table Kimball star schema, 20 KPIs, 4 RLS roles, 4-page / 44-visual PBIR report |
-| Custom BI Engineering Skills | [`bi-dimensional-modeling`](.agents/skills/bi-dimensional-modeling/SKILL.md), [`bi-dax-and-rls-engineering`](.agents/skills/bi-dax-and-rls-engineering/SKILL.md) | **Authored IP** | Repo-specific Kimball contract, DAX hygiene, and fail-closed RLS standards |
-| Power BI / Fabric Ecosystem Skills | `.agents/skills/{connect-pbid, create-pbi-report, dax, lineage-analysis, modifying-theme-json, organize-semantic-model, pbi-report-design, pbip, pbir-cli, pbir-format, power-query, refresh-semantic-model, review-report, semantic-model, tmdl}` | **Vendored / Third-Party Skills** | Reusable Power BI Desktop, `pbir-cli`, Tabular Editor, DAX, Power Query, and TMDL reference skills |
-
-## Proof of Execution
-
-Live Power BI Desktop screenshots captured by Gate `G6` (`pbir desktop screenshot --all`) for `REQ-002`:
+Live Power BI Desktop renders captured by Gate `G6` (`pbir desktop screenshot --all`) across `4` report pages (`44` visuals):
 
 | Executive Overview | Regional Margin Analysis |
 | :---: | :---: |
 | ![Executive Overview](docs/images/executive-overview.png) | ![Regional Margin Analysis](docs/images/regional-margin-analysis.png) |
+| *Tracks `$48.74M` Net Revenue vs. `$49.39M` Budget (`-$646.56K`), `33.80%` GM%, and monthly revenue-vs-budget trends.* | *Pinpoints the `-$646.56K` miss to `EMEA` (`-1.61%`) and the bottom-5 stores driving `44.0%` of global variance.* |
 | **Product Detail** | **Customer & Discounts** |
 | ![Product Detail](docs/images/product-detail.png) | ![Customer & Discounts](docs/images/customer-discounts.png) |
+| *Surfaces the `905 bps` category GM% spread and the `Edge Gateways Model 41` (`25.39%` GM) SKU margin inversion.* | *Quantifies `$4.37M` (`8.23%`) discount leakage across `300` active customers and `Support Plans` (`8.60%`).* |
+
+---
+
+## Architecture & AI/BI Engineering Showcase
+
+```mermaid
+flowchart LR
+    req["REQ-*.yaml (Gate G1 Contract)"]
+    wf["workflows/bi_delivery + Parallel Specialist Auditors"]
+    cascade["Model Cascade (MCP -> TE2 -> TOM -> TMDL) + pbir CLI + Pre/Post Hooks"]
+    gates["7 Deterministic Gates (G1-G7: BPA, ADOMD DAX/SLA, RLS, PBIR, Tree SHA)"]
+    commit["git write-tree SHA-Bound bi-agent git-commit"]
+    req --> wf --> cascade --> gates --> commit
+```
+
+### Showcase Scope (`pbi/EnterpriseSales`)
+- **Semantic Model:** `8` tables, `7` `1:*` `Single` relationships, `3` hierarchies, `DimDate` date table, `20` documented KPIs across `5` folders, and `4` fail-closed RLS roles (`Region_NA`, `Region_EMEA`, `Region_APAC`, `Dynamic_SalesRep`).
+- **PBIR Report:** `4` pages (`44` visuals) authored and validated exclusively via the `pbir` CLI.
+
+### Why This Engineering Matters for Finance
+- **Empirical DAX Truth & Latency SLAs (`G4`):** Reconciles `51` ADOMD.NET assertions within `±0.01`—including `[Total Revenue] = [Gross Revenue] - [Total Discount]` accounting tie-outs, cross-grain `BLANK()` budget guards, and actuals-cutoff time intelligence—while enforcing `<= 1500ms` cold / `<= 500ms` warm SLAs.
+- **Multi-Fact Fail-Closed RLS (`G1` & `G5`):** `Dynamic_SalesRep` combines UPN filtering on `DimSalesRep` with `tablePermission FactBudget = FALSE ()` so sales reps and unauthorized principals see `0` rows across both `FactSales` and `FactBudget` (with [ADR-0006](docs/adr/0006-customdata-rls-testing-shim-and-service-hardening.md) pre-publish `CUSTOMDATA()` hardening).
+- **Strict Tool Cascade & Runtime Guardrails:** `PreToolUse` hooks block direct writes to `*.Report/definition/**/*.json` (enforcing `pbir` CLI exclusively) and block unverified `git commit` invocations.
+- **Tamper-Evident Commits & Fault Injection (`G7`):** `bi-agent git-commit` verifies the staged `git write-tree` SHA against `verification-report.json`, backed by `9` fail-closed fault-injection tests (`tests/fault_injection`).
+- **Clean Authored IP vs. Vendored Provenance:** Authored verification engine, skills, and PBIP showcase are cleanly isolated from `15` third-party skills tagged `linguist-vendored` in [`.gitattributes`](.gitattributes).
+
+---
+
+## Productionising on Microsoft Fabric
+
+Promoting [`pbi/EnterpriseSales`](pbi/EnterpriseSales/EnterpriseSales.pbip) from local Power BI Desktop verification to Microsoft Fabric production follows a governed four-stage architecture:
+
+- **Git Integration & Parameterized Pipelines:** Bind the Dev workspace to `pbi/EnterpriseSales` (`PBIP`/`TMDL`/`PBIR`) and promote via Deployment Pipelines (`Dev -> Test -> Prod`), swapping local `DataFolder` for stage Lakehouse/Warehouse endpoints.
+- **Medallion Data & Headless SPN Gates:** Source Gold Delta tables via Import + Incremental Refresh (`RangeStart`/`RangeEnd`) or Direct Lake, then run headless Entra ID SPN `G3`/`G4`/`G5` verification over the Test XMLA endpoint.
+- **Pre-Publish Security & Governance:** Strip `CUSTOMDATA()` precedence per [ADR-0006](docs/adr/0006-customdata-rls-testing-shim-and-service-hardening.md) so `Dynamic_SalesRep` enforces strict `USERPRINCIPALNAME()`, enforce Viewer/App RBAC, Purview sensitivity labels, and post-refresh smoke checks.
+
+Read the complete 1-page architect blueprint: **[Microsoft Fabric Productionisation Blueprint](docs/PRODUCTIONISATION_BLUEPRINT.md)**.
+
+---
+
+## Verification Proof (`REQ-002`)
 
 <details>
-<summary>Passing Verification Report Excerpt (REQ-002)</summary>
+<summary>Latest Passing Verification Report Excerpt (REQ-002 — Live G1–G7 Evidence)</summary>
 
-```markdown
-# Verification Evidence Report (REQ-002)
-
-- Overall Status: PASS
-- Git Branch: fix/finance-bi-audit-hardening
+- **Overall Status:** `PASS` | **Git Branch:** `docs/portfolio-executive-polish` | **Artifacts:** `artifacts/runs/REQ-002/verification-report.md`, `artifacts/runs/REQ-002/verification-report.json` (`Staged Tree SHA` locked by final pre-commit `verify-all` prior to `bi-agent git-commit`)
 
 | Gate | Name | Status | Duration (ms) | Summary |
 | :--- | :--- | :---: | ---: | :--- |
-| G1 | Design Contract | PASS | 26 | Validated 2 facts, 5 dims, 20 KPIs, 4 RLS roles |
-| G2 | PBIP & TMDL Structure | PASS | 2579 | PBIP clean and TE2 loaded 8 table(s) |
-| G3 | BPA & VertiPaq Audit | PASS | 14197 | BPA errors=0, warnings=0, vpax_ok=True |
-| G4 | Live DAX Reconciliation & Perf | PASS | 57335 | Reconciled 51 DAX assertion(s) within +/-0.01 |
-| G5 | Live RLS Impersonation | PASS | 24581 | Verified 7 RLS impersonation scenario(s) with zero leakage |
-| G6 | Report QA & Desktop Render | PASS | 25142 | pbir validate passed (4 screenshot(s)) |
-| G7 | Git Governance & Tree Binding | PASS | 289 | Branch 'fix/finance-bi-audit-hardening' |
-```
+| G1 | Design Contract | `PASS` | 12 | Validated 2 facts, 5 dims, 20 KPIs, 4 RLS roles |
+| G2 | PBIP & TMDL Structure | `PASS` | 1387 | PBIP clean and TE2 loaded 8 table(s) |
+| G3 | BPA & VertiPaq Audit | `PASS` | 6184 | BPA errors=0, warnings=0, vpax_ok=True |
+| G4 | Live DAX Reconciliation & Perf | `PASS` | 38172 | Reconciled 51 DAX assertion(s) within +/-0.01 |
+| G5 | Live RLS Impersonation | `PASS` | 14287 | Verified 7 RLS impersonation scenario(s) with zero leakage |
+| G6 | Report QA & Desktop Render | `PASS` | 91061 | pbir validate passed (4 screenshot(s)) |
+| G7 | Git Governance & Tree Binding | `PASS` | 162 | Branch `docs/portfolio-executive-polish` bound to staged `git write-tree` SHA |
+
+- **G4 DAX Benchmark Latency vs. SLA:** Cold `avg=7.0ms`, `max_cold_ms=7.0ms` (SLA `<= 1500ms`) | Warm `avg=3.3ms`, `max_warm_ms=4.0ms` (SLA `<= 500ms`) (`artifacts/runs/REQ-002/benchmark_results.csv`)
+
+| Role | Principal | FactSales Rows | FactBudget Rows | Status |
+| :--- | :--- | ---: | ---: | :---: |
+| Region_NA | (static) | 8,349 | 216 | `PASS` |
+| Region_EMEA | (static) | 8,269 | 216 | `PASS` |
+| Region_APAC | (static) | 8,382 | 216 | `PASS` |
+| Dynamic_SalesRep | `<local_user>` | 0 | 0 | `PASS` |
+| Dynamic_SalesRep | `alice.emea@contoso.com` | 2,099 | 0 | `PASS` |
+| Dynamic_SalesRep | `bob.na@contoso.com` | 2,051 | 0 | `PASS` |
+| Dynamic_SalesRep | `unauthorized.user@contoso.com` | 0 | 0 | `PASS` |
 
 </details>
 
-## Documentation
+---
 
-- [Master Plan](docs/PLAN.md)
-- [Phase State Checkpoint](docs/PHASE_STATE.md)
-- [End-to-End Delivery Walkthrough](docs/WALKTHROUGH.md)
-- [Architecture Decision Records (ADRs)](docs/adr/README.md)
+## Deep Documentation
+
+| Document | Audience | Contents |
+| :--- | :--- | :--- |
+| [Fabric Productionisation Blueprint](docs/PRODUCTIONISATION_BLUEPRINT.md) | Cloud / BI Architects | Git Integration, Deployment Pipelines, Medallion Refresh/Direct Lake, SPN XMLA Gates, `ADR-0006` Hardening |
+| [Operations, Matrix & CLI Reference](docs/OPERATIONS_AND_CLI.md) | BI Engineers & Reviewers | 7-Gate Matrix, `pbi/EnterpriseSales` Inventory, Finance Safeguards, CLI, CI & IP Attribution |
+| [End-to-End Delivery Walkthrough](docs/WALKTHROUGH.md) | Technical Reviewers | Phase-by-phase build history, empirical live `REQ-002` evidence, and 9 fault-injection tests |
+| [Architecture Decision Records](docs/adr/README.md) | Engineering Leads | `ADR-0001` through `ADR-0006` covering harness design, PBIR CLI exclusivity, and RLS hardening |
+| [Master Plan](docs/PLAN.md) | Maintainers | Original 7-gate architecture and 3-window delivery cadence |
+| [Phase State Checkpoint](docs/PHASE_STATE.md) | Maintainers & Agents | Concise live status checkpoint (`<= 60` lines) across Phases 1–9 |

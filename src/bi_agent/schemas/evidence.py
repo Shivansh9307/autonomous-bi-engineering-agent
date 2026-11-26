@@ -12,6 +12,28 @@ from pydantic import BaseModel, Field
 GateStatus = Literal["PASS", "FAIL", "SKIP", "WARN"]
 
 
+def to_repo_relative_posix(raw_path: str, repo_root: Path | None = None) -> str:
+    """Normalize a local filesystem path into a repo-relative POSIX path when possible."""
+    if not raw_path:
+        return raw_path
+    norm_raw = raw_path.replace("\\", "/")
+    if repo_root is not None:
+        norm_root = str(repo_root).replace("\\", "/").rstrip("/")
+        if norm_raw.lower().startswith(norm_root.lower() + "/"):
+            return norm_raw[len(norm_root) + 1 :]
+        if norm_raw.lower() == norm_root.lower():
+            return "."
+        try:
+            return Path(raw_path).resolve().relative_to(repo_root.resolve()).as_posix()
+        except (ValueError, OSError):
+            pass
+    return norm_raw
+
+
+def _fmt_ms(val: Any) -> str:
+    return f"{float(val):.1f}ms" if val is not None else "N/A"
+
+
 class GateFinding(BaseModel):
     severity: Literal["error", "warn", "info"] = "info"
     code: str
@@ -49,7 +71,7 @@ class VerificationEvidenceBundle(BaseModel):
         path.write_text(self.model_dump_json(indent=2) + "\n", encoding="utf-8")
         return path
 
-    def write_markdown(self, path: Path) -> Path:
+    def write_markdown(self, path: Path, repo_root: Path | None = None) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         lines = [
             f"# Verification Evidence Report ({self.req_id})",
@@ -69,18 +91,69 @@ class VerificationEvidenceBundle(BaseModel):
             )
 
         for gate in self.gates:
-            if gate.findings or gate.artifacts:
+            perf = gate.metrics.get("performance") if gate.gate_id == "G4" else None
+            has_g4_perf = (
+                isinstance(perf, dict)
+                and not perf.get("benchmark_skipped", False)
+                and any(
+                    perf.get(k) is not None
+                    for k in ("cold_avg_ms", "warm_avg_ms", "cold_max_ms", "warm_max_ms")
+                )
+            )
+            matrix = gate.metrics.get("matrix") if gate.gate_id == "G5" else None
+            has_g5_matrix = isinstance(matrix, list) and len(matrix) > 0
+
+            if gate.findings or gate.artifacts or has_g4_perf or has_g5_matrix:
                 lines.append("")
                 lines.append(f"## {gate.gate_id}: {gate.name}")
+                if has_g4_perf and isinstance(perf, dict):
+                    cold_budget = perf.get("cold_budget_ms", 1500)
+                    warm_budget = perf.get("warm_budget_ms", 500)
+                    lines.append(
+                        f"- **DAX Benchmark Latency vs. SLA:** "
+                        f"Cold `avg={_fmt_ms(perf.get('cold_avg_ms'))}`, "
+                        f"`max_cold_ms={_fmt_ms(perf.get('cold_max_ms'))}` "
+                        f"(SLA `<= {cold_budget}ms`) | "
+                        f"Warm `avg={_fmt_ms(perf.get('warm_avg_ms'))}`, "
+                        f"`max_warm_ms={_fmt_ms(perf.get('warm_max_ms'))}` "
+                        f"(SLA `<= {warm_budget}ms`)"
+                    )
+                if has_g5_matrix and isinstance(matrix, list):
+                    lines.append("")
+                    lines.append(
+                        "| Role | Principal | FactSales Rows | FactBudget Rows | Status |"
+                    )
+                    lines.append("| :--- | :--- | ---: | ---: | :---: |")
+                    for entry in matrix:
+                        if not isinstance(entry, dict):
+                            continue
+                        role = entry.get("role", "")
+                        principal = entry.get("principal") or "(static)"
+                        sales_val = entry.get("actual_rows")
+                        sales_str = f"{int(sales_val):,}" if sales_val is not None else "N/A"
+                        budget_val = entry.get("actual_budget_rows")
+                        budget_str = f"{int(budget_val):,}" if budget_val is not None else "N/A"
+                        status = entry.get("status", "")
+                        lines.append(
+                            f"| {role} | {principal} | {sales_str} | {budget_str} | `{status}` |"
+                        )
                 for finding in gate.findings:
-                    loc = f" (`{finding.location}`)" if finding.location else ""
+                    loc_str = (
+                        to_repo_relative_posix(finding.location, repo_root)
+                        if finding.location
+                        else ""
+                    )
+                    loc = f" (`{loc_str}`)" if loc_str else ""
                     lines.append(
                         f"- **[{finding.severity.upper()}]** `{finding.code}`: "
                         f"{finding.message}{loc}"
                     )
                 if gate.artifacts:
+                    rel_arts = [
+                        to_repo_relative_posix(art, repo_root) for art in gate.artifacts
+                    ]
                     lines.append(
-                        "- **Artifacts:** " + ", ".join(f"`{art}`" for art in gate.artifacts)
+                        "- **Artifacts:** " + ", ".join(f"`{art}`" for art in rel_arts)
                     )
 
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -17,6 +17,7 @@ from bi_agent.schemas.test_suite import load_ground_truth
 STATIC_RLS_QUERY = """EVALUATE
 ROW(
     "RowCount", COUNTROWS('FactSales'),
+    "BudgetRowCount", COUNTROWS('FactBudget'),
     "TotalRevenue", COALESCE([Total Revenue], 0),
     "Regions", CONCATENATEX(VALUES('DimStore'[Region]), 'DimStore'[Region], ",")
 )"""
@@ -344,6 +345,10 @@ def run_gate_g5(
 
             row = res.rows[0]
             actual_rows = int(float(_get_field(row, "RowCount") or 0))
+            raw_budget_rows = _get_field(row, "BudgetRowCount")
+            actual_budget_rows: int | None = (
+                int(float(raw_budget_rows)) if raw_budget_rows is not None else None
+            )
             actual_rev = float(_get_field(row, "TotalRevenue") or 0.0)
             actual_regions = str(_get_field(row, "Regions") or "")
 
@@ -393,6 +398,7 @@ def run_gate_g5(
                     "type": "static",
                     "principal": None,
                     "actual_rows": actual_rows,
+                    "actual_budget_rows": actual_budget_rows,
                     "actual_revenue": actual_rev,
                     "regions_visible": actual_regions,
                     "status": "PASS" if case_ok else "FAIL",

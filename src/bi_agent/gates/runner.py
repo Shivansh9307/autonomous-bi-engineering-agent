@@ -13,7 +13,11 @@ from bi_agent.gates.g4_dax_reconciliation import run_gate_g4
 from bi_agent.gates.g5_rls_verification import run_gate_g5, run_gate_g5_offline
 from bi_agent.gates.g6_report_visuals import run_gate_g6
 from bi_agent.gates.g7_git_governance import run_gate_g7
-from bi_agent.schemas.evidence import GateResult, VerificationEvidenceBundle
+from bi_agent.schemas.evidence import (
+    GateResult,
+    VerificationEvidenceBundle,
+    to_repo_relative_posix,
+)
 
 
 def run_all_gates(
@@ -97,6 +101,18 @@ def run_all_gates(
         )
     )
 
+    for gate in gates:
+        gate.artifacts = [to_repo_relative_posix(art, repo_root) for art in gate.artifacts]
+        for finding in gate.findings:
+            if finding.location:
+                finding.location = to_repo_relative_posix(finding.location, repo_root)
+        if gate.gate_id == "G6":
+            shots = gate.metrics.get("screenshots")
+            if isinstance(shots, list):
+                for shot in shots:
+                    if isinstance(shot, dict) and isinstance(shot.get("path"), str):
+                        shot["path"] = to_repo_relative_posix(shot["path"], repo_root)
+
     branch = git_adapter.current_branch(repo_root)
     tree_sha = git_adapter.staged_tree_sha(repo_root)
     overall_pass = all(g.status in ("PASS", "WARN", "SKIP") for g in gates)
@@ -110,5 +126,5 @@ def run_all_gates(
     )
 
     json_path = bundle.write_json(run_dir / "verification-report.json")
-    md_path = bundle.write_markdown(run_dir / "verification-report.md")
+    md_path = bundle.write_markdown(run_dir / "verification-report.md", repo_root=repo_root)
     return bundle, json_path, md_path
