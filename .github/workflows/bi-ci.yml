@@ -1,0 +1,100 @@
+name: BI Verification CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-lint-and-unit:
+    name: Python Lint, Unit Tests & Design Gate (G1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Run Ruff linter
+        run: uv run ruff check --no-cache src tests scripts
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit -p no:cacheprovider -v
+
+      - name: Verify REQ-001 design contract (Gate G1)
+        run: uv run bi-agent verify-design requirements/REQ-001-regional-sales-margin.yaml
+
+      - name: Verify REQ-002 design contract (Gate G1)
+        run: uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
+
+  bi-offline-gates:
+    name: Windows BI Offline Gates (G1-G3, G6, G7) & Fault Injection
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Install pbir-cli
+        run: |
+          uv tool install pbir-cli
+          "$env:USERPROFILE\.local\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify pbir CLI installation
+        run: pbir --version
+
+      - name: Install Tabular Editor 2 Portable
+        run: |
+          $teDir = "C:\tools\TabularEditor"
+          New-Item -ItemType Directory -Force -Path $teDir | Out-Null
+          $zipPath = Join-Path $env:RUNNER_TEMP "TabularEditor.Portable.zip"
+          Invoke-WebRequest -Uri "https://github.com/TabularEditor/TabularEditor/releases/latest/download/TabularEditor.Portable.zip" -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $teDir -Force
+          $teDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify TabularEditor.exe installation
+        run: Get-Command TabularEditor.exe
+
+      - name: Run REQ-001 offline verification gates
+        run: uv run bi-agent verify-all --req-id REQ-001 --requirement requirements/REQ-001-regional-sales-margin.yaml --offline
+
+      - name: Run REQ-002 offline verification gates
+        run: uv run bi-agent verify-all --req-id REQ-002 --requirement requirements/REQ-002-customer-discount-analytics.yaml --offline
+
+      - name: Run fail-closed fault-injection suite
+        run: uv run pytest tests/fault_injection -p no:cacheprovider -v
+
+      - name: Upload verification evidence bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bi-verification-evidence
+          path: artifacts/runs/*/verification-report.*
+          retention-days: 14
