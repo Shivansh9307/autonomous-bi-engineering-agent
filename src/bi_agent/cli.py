@@ -17,7 +17,7 @@ from bi_agent.gates.g1_design_contract import run_gate_g1
 from bi_agent.gates.g2_pbip_structure import run_gate_g2
 from bi_agent.gates.g3_bpa_vpax import run_gate_g3
 from bi_agent.gates.g4_dax_reconciliation import run_gate_g4
-from bi_agent.gates.g5_rls_verification import run_gate_g5
+from bi_agent.gates.g5_rls_verification import run_gate_g5, run_gate_g5_offline
 from bi_agent.gates.g6_report_visuals import run_gate_g6
 from bi_agent.gates.runner import run_all_gates
 from bi_agent.schemas.evidence import GateResult, VerificationEvidenceBundle
@@ -248,31 +248,43 @@ def verify_dax(
 @app.command("verify-rls")
 def verify_rls(
     requirement: Annotated[Path | None, typer.Option("--requirement")] = None,
+    project_dir: Annotated[Path | None, typer.Option("--project")] = None,
     ground_truth: Annotated[Path | None, typer.Option("--ground-truth")] = None,
     port: Annotated[int | None, typer.Option("--port")] = None,
     database: Annotated[str, typer.Option("--database")] = "",
     tolerance: Annotated[float | None, typer.Option("--tolerance")] = None,
+    offline: Annotated[
+        bool, typer.Option("--offline", help="Run offline TMDL RLS contract audit only.")
+    ] = False,
     json_output: Annotated[bool, typer.Option("--json")] = False,
     config: Annotated[Path | None, typer.Option("--config")] = None,
 ) -> None:
-    """Run live ADOMD.NET RLS impersonation matrix (Gate G5)."""
+    """Run offline TMDL RLS contract audit or live ADOMD.NET RLS impersonation (Gate G5)."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
     req_path = _resolve_requirement(repo_root, "REQ-001", requirement)
-    gt_path = (
-        ground_truth
-        if ground_truth is not None
-        else (repo_root / cfg.project.ground_truth_path)
-    )
-    result = run_gate_g5(
-        req_path,
-        gt_path,
-        cfg,
-        repo_root,
-        port=port,
-        database=database,
-        tolerance=tolerance,
-    )
+    if offline:
+        target_project = (
+            project_dir
+            if project_dir is not None
+            else (repo_root / cfg.project.pbip_project_dir)
+        )
+        result = run_gate_g5_offline(target_project, req_path)
+    else:
+        gt_path = (
+            ground_truth
+            if ground_truth is not None
+            else (repo_root / cfg.project.ground_truth_path)
+        )
+        result = run_gate_g5(
+            req_path,
+            gt_path,
+            cfg,
+            repo_root,
+            port=port,
+            database=database,
+            tolerance=tolerance,
+        )
     _emit_gate(result, json_output)
 
 

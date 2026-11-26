@@ -42,6 +42,9 @@ def test_adrs_readme_and_walkthrough_exist_and_cross_link() -> None:
     adr_index = (repo_root / "docs" / "adr" / "README.md").read_text(encoding="utf-8")
 
     assert "7-Gate Verification Matrix" in readme_text
+    assert "Authored IP vs. Vendored Skills" in readme_text
+    assert "Finance Modeling Safeguards" in readme_text
+    assert "Proof of Execution" in readme_text
     assert "docs/WALKTHROUGH.md" in readme_text
     assert "docs/adr/README.md" in readme_text
     assert "REQ-002" in walkthrough_text
@@ -52,6 +55,7 @@ def test_adrs_readme_and_walkthrough_exist_and_cross_link() -> None:
         "0003-empirical-dax-reconciliation-and-fail-closed-rls.md",
         "0004-evidence-gated-git-commits-via-staged-tree-sha.md",
         "0005-offline-ci-versus-live-desktop-verification-split.md",
+        "0006-customdata-rls-testing-shim-and-service-hardening.md",
     ]
     for filename in adr_files:
         adr_path = repo_root / "docs" / "adr" / filename

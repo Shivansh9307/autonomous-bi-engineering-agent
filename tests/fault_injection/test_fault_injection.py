@@ -19,6 +19,7 @@ from bi_agent.gates import (
     run_gate_g3,
     run_gate_g4,
     run_gate_g5,
+    run_gate_g5_offline,
     run_gate_g6,
 )
 from bi_agent.hooks.pre_tool_guard import evaluate_pre_tool_use
@@ -231,6 +232,38 @@ def test_fi05_g4_catches_dax_drift_and_perf_budget_breach(
                 ],
                 row_count=1,
             )
+        if "BudgetByProduct" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[BudgetByProduct]": None,
+                        "[BudgetByCustomer]": None,
+                        "[BudgetBySalesRep]": None,
+                        "[VarianceByProduct]": None,
+                    }
+                ],
+                row_count=1,
+            )
+        if "NoActualsBudget" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[NoActualsBudget]": gt.overall.total_budget,
+                        "[NoActualsVariance]": None,
+                        "[NoActualsStatus]": "No Actuals",
+                        "[NoBudgetStatus]": "No Budget",
+                    }
+                ],
+                row_count=1,
+            )
+        if "MaxDateKey" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[{"[MaxDateKey]": 20261231, "[MaxSalesDateKey]": 20261231}],
+                row_count=1,
+            )
         return DaxQueryResult(
             ok=True,
             rows=[
@@ -328,12 +361,20 @@ def test_fi06_g5_catches_cross_region_leak_and_fail_open_rls(
             )
         if effective_user_name == "unauthorized.user@contoso.com":
             return DaxQueryResult(
-                ok=True, rows=[{"[RowCount]": 15, "[TotalRevenue]": 999.0}], row_count=1
+                ok=True,
+                rows=[{"[RowCount]": 15, "[BudgetRowCount]": 648, "[TotalRevenue]": 999.0}],
+                row_count=1,
             )
         exp_rep = gt.by_sales_rep_upn[effective_user_name]
         return DaxQueryResult(
             ok=True,
-            rows=[{"[RowCount]": exp_rep.row_count, "[TotalRevenue]": exp_rep.total_revenue}],
+            rows=[
+                {
+                    "[RowCount]": exp_rep.row_count,
+                    "[BudgetRowCount]": 0,
+                    "[TotalRevenue]": exp_rep.total_revenue,
+                }
+            ],
             row_count=1,
         )
 
@@ -409,3 +450,96 @@ def test_fi08_g7_blocks_stale_evidence_sha_and_protected_branch(tmp_path: Path) 
         repo_root=repo,
     )
     assert hook_deny["decision"] == "deny"
+
+
+def test_fi09_rls_cross_fact_budget_leak_caught_offline_and_live(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = find_repo_root(Path(__file__).resolve())
+    req_path = repo_root / "requirements" / "REQ-002-customer-discount-analytics.yaml"
+    gt_path = repo_root / "data" / "ground_truth" / "expected_metrics.json"
+    gt = load_ground_truth(gt_path)
+
+    # 1. Offline model gate catches stripped FactBudget deny permission on Dynamic_SalesRep.tmdl
+    proj = _copy_pbip(repo_root, tmp_path)
+    role_file = (
+        proj
+        / "EnterpriseSales.SemanticModel"
+        / "definition"
+        / "roles"
+        / "Dynamic_SalesRep.tmdl"
+    )
+    role_text = role_file.read_text(encoding="utf-8")
+    assert "tablePermission FactBudget = FALSE ()" in role_text
+    role_file.write_text(
+        role_text.replace("\ttablePermission FactBudget = FALSE ()\n", "").replace(
+            "tablePermission FactBudget = FALSE ()", ""
+        ),
+        encoding="utf-8",
+    )
+
+    offline_res = run_gate_g5_offline(proj, req_path)
+    assert offline_res.status == "FAIL"
+    offline_codes = {f.code for f in offline_res.findings}
+    assert {"G5_OFFLINE_MISSING_PERMISSION", "G5_OFFLINE_CROSS_FACT_LEAK"}.issubset(
+        offline_codes
+    )
+
+    # 2. Offline G1 contract gate catches missing FactBudget deny in temporary REQ YAML
+    bad_req = tmp_path / "REQ-002-MISSING-BUDGET-DENY.yaml"
+    req_yaml = req_path.read_text(encoding="utf-8")
+    stripped_yaml = req_yaml.replace(
+        '      - table: FactBudget\n        filter: "FALSE ()"\n', ""
+    )
+    assert stripped_yaml != req_yaml
+    bad_req.write_text(stripped_yaml, encoding="utf-8")
+
+    g1_res = run_gate_g1(bad_req, repo_root)
+    assert g1_res.status == "FAIL"
+    assert any("FactBudget" in f.message for f in g1_res.findings)
+
+    # 3. Live G5 catches FactBudget leak for valid & unauthorized Dynamic_SalesRep principals
+    def _mock_budget_leak(
+        port: int,
+        dax_query: str,
+        config: ToolchainConfig,
+        repo: Path,
+        database: str = "",
+        roles: str = "",
+        effective_user_name: str = "",
+        custom_data: str = "",
+    ) -> DaxQueryResult:
+        if roles in ("Region_NA", "Region_EMEA", "Region_APAC"):
+            reg = roles.replace("Region_", "")
+            exp = gt.by_region[reg]
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[RowCount]": exp.row_count,
+                        "[TotalRevenue]": exp.total_revenue,
+                        "[Regions]": reg,
+                    }
+                ],
+                row_count=1,
+            )
+        exp_rep = gt.by_sales_rep_upn[effective_user_name]
+        return DaxQueryResult(
+            ok=True,
+            rows=[
+                {
+                    "[RowCount]": exp_rep.row_count,
+                    "[BudgetRowCount]": 648,
+                    "[TotalRevenue]": exp_rep.total_revenue,
+                }
+            ],
+            row_count=1,
+        )
+
+    monkeypatch.setattr(adomd_adapter, "execute_dax", _mock_budget_leak)
+    live_res = run_gate_g5(
+        req_path, gt_path, ToolchainConfig(), repo_root, port=55555, database="DB"
+    )
+    assert live_res.status == "FAIL"
+    assert any(f.code == "G5_CROSS_FACT_LEAK" for f in live_res.findings)

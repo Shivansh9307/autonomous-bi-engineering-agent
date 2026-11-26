@@ -417,14 +417,19 @@ def main() -> None:
         u_cogs = Decimal(stats["cogs"])
         by_upn_out[upn] = {
             "row_count": int(stats["rows"]),
+            "budget_row_count": 0,
             "total_revenue": float(q2(u_rev)),
             "gross_margin": float(q2(u_rev - u_cogs)),
         }
     by_upn_out["unauthorized.user@contoso.com"] = {
         "row_count": 0,
+        "budget_row_count": 0,
         "total_revenue": 0.0,
         "gross_margin": 0.0,
     }
+
+    max_sales_dk = max(int(r["DateKey"]) for r in fact_sales)
+    max_date_dk = max(int(r["DateKey"]) for r in dim_date)
 
     ground_truth = {
         "seed": SEED,
@@ -447,6 +452,15 @@ def main() -> None:
             "total_budget": float(q2(total_budget)),
             "budget_variance": float(q2(budget_var)),
             "budget_variance_pct": float(q4(budget_var / total_budget)),
+        },
+        "finance_guards": {
+            "accounting_identity_diff": float(q2(overall_gross - overall_disc - overall_rev)),
+            "cross_grain_budget_dimensions": ["DimProduct", "DimCustomer", "DimSalesRep"],
+            "max_sales_date_key": max_sales_dk,
+            "max_date_key": max_date_dk,
+            "has_future_budget_periods": max_date_dk > max_sales_dk,
+            "expected_no_actuals_status": "No Actuals",
+            "expected_no_budget_status": "No Budget",
         },
         "by_year": by_year_out,
         "by_region": by_region_out,

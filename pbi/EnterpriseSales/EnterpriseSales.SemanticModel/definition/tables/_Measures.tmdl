@@ -58,7 +58,7 @@ table _Measures
 			VAR _Current = [Total Revenue]
 			VAR _Prior = [Revenue PY]
 			RETURN
-			    IF ( NOT ISBLANK ( _Prior ), _Current - _Prior )
+			    IF ( NOT ISBLANK ( _Current ) && NOT ISBLANK ( _Prior ), _Current - _Prior )
 		formatString: $#,##0.00
 		displayFolder: 02 Time Intelligence
 		lineageTag: ffcd5b5a-c90e-4bd6-bd70-11c868cf8ddb
@@ -72,30 +72,67 @@ table _Measures
 		displayFolder: 02 Time Intelligence
 		lineageTag: bb0b97af-2324-4b63-a4a9-e874974ef0ba
 
-	/// Year-to-date cumulative net revenue.
-	measure 'Revenue YTD' = CALCULATE ( [Total Revenue], DATESYTD ( 'DimDate'[Date] ) )
+	/// Year-to-date cumulative net revenue suppressed beyond last actual sales date.
+	measure 'Revenue YTD' =
+			VAR _LastActualDateKey =
+			    CALCULATE ( MAX ( 'FactSales'[DateKey] ), REMOVEFILTERS () )
+			VAR _FirstSelectedDateKey =
+			    MIN ( 'DimDate'[DateKey] )
+			RETURN
+			    IF (
+			        NOT ISBLANK ( _LastActualDateKey ) && _FirstSelectedDateKey <= _LastActualDateKey,
+			        CALCULATE ( [Total Revenue], DATESYTD ( 'DimDate'[Date] ) )
+			    )
 		formatString: $#,##0.00
 		displayFolder: 02 Time Intelligence
 		lineageTag: e34abe7e-9f5d-47d7-9ba7-669de5f34c10
 
-	/// Trailing three-month net revenue ending at the max selected date.
+	/// Trailing three-month net revenue clamped to the last actual sales date.
 	measure 'Revenue Rolling 3M' =
-			CALCULATE (
-			    [Total Revenue],
-			    DATESINPERIOD ( 'DimDate'[Date], MAX ( 'DimDate'[Date] ), -3, MONTH )
-			)
+			VAR _LastActualDateKey =
+			    CALCULATE ( MAX ( 'FactSales'[DateKey] ), REMOVEFILTERS () )
+			VAR _LastActualDate =
+			    CALCULATE (
+			        MAX ( 'DimDate'[Date] ),
+			        REMOVEFILTERS (),
+			        'DimDate'[DateKey] = _LastActualDateKey
+			    )
+			VAR _MinSelectedDate =
+			    MIN ( 'DimDate'[Date] )
+			VAR _AnchorDate =
+			    MIN ( MAX ( 'DimDate'[Date] ), _LastActualDate )
+			RETURN
+			    IF (
+			        NOT ISBLANK ( _LastActualDate )
+			            && NOT ISBLANK ( _MinSelectedDate )
+			            && _MinSelectedDate <= _LastActualDate,
+			        CALCULATE (
+			            [Total Revenue],
+			            DATESINPERIOD ( 'DimDate'[Date], _AnchorDate, -3, MONTH )
+			        )
+			    )
 		formatString: $#,##0.00
 		displayFolder: 02 Time Intelligence
 		lineageTag: 62cc9f53-5234-4f80-b4a9-102aabe0e9d6
 
-	/// Total budgeted revenue across stores and months.
-	measure 'Budget Revenue' = SUM ( 'FactBudget'[BudgetRevenue] )
+	/// Total budgeted revenue across stores and months, suppressed below store/month grain.
+	measure 'Budget Revenue' =
+			VAR _InvalidGrain =
+			    ISCROSSFILTERED ( 'DimProduct' )
+			        || ISCROSSFILTERED ( 'DimCustomer' )
+			        || ISCROSSFILTERED ( 'DimSalesRep' )
+			RETURN
+			    IF ( NOT _InvalidGrain, SUM ( 'FactBudget'[BudgetRevenue] ) )
 		formatString: $#,##0.00
 		displayFolder: 03 Budget & Variance
 		lineageTag: 2a70ca9e-6f6b-4d5f-9e95-5caa7004ab22
 
-	/// Actual net revenue minus budgeted revenue.
-	measure 'Budget Variance' = [Total Revenue] - [Budget Revenue]
+	/// Actual net revenue minus budgeted revenue when both actuals and budget exist.
+	measure 'Budget Variance' =
+			VAR _Actual = [Total Revenue]
+			VAR _Budget = [Budget Revenue]
+			RETURN
+			    IF ( NOT ISBLANK ( _Actual ) && NOT ISBLANK ( _Budget ), _Actual - _Budget )
 		formatString: $#,##0.00
 		displayFolder: 03 Budget & Variance
 		lineageTag: a2d1dcfd-faf4-4e2a-bd63-00a9a722f108
@@ -108,11 +145,14 @@ table _Measures
 
 	/// Qualitative status comparing actual revenue against budget target.
 	measure 'Budget Attainment Status' =
+			VAR _Actual = [Total Revenue]
+			VAR _Budget = [Budget Revenue]
 			VAR _VarPct = [Budget Variance %]
 			RETURN
 			    SWITCH (
 			        TRUE (),
-			        ISBLANK ( _VarPct ), "No Budget",
+			        ISBLANK ( _Budget ) || _Budget = 0, "No Budget",
+			        ISBLANK ( _Actual ), "No Actuals",
 			        _VarPct >= 0, "On Target",
 			        _VarPct >= -0.05, "Watch",
 			        "Below Target"

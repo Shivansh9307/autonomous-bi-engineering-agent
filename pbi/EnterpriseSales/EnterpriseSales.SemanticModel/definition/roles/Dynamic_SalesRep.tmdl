@@ -8,5 +8,7 @@ role Dynamic_SalesRep
 			RETURN
 			    'DimSalesRep'[UserPrincipalName] = _Identity
 
+	tablePermission FactBudget = FALSE ()
+
 	annotation PBI_Id = 9355ea0834494680bb28da228178fa81
 

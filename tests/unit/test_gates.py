@@ -10,7 +10,7 @@ import pytest
 from bi_agent.adapters import adomd_adapter
 from bi_agent.adapters.adomd_adapter import DaxQueryResult
 from bi_agent.config import ToolchainConfig, find_repo_root
-from bi_agent.gates import run_gate_g1, run_gate_g4, run_gate_g5, run_gate_g7
+from bi_agent.gates import run_gate_g1, run_gate_g4, run_gate_g5, run_gate_g5_offline, run_gate_g7
 from bi_agent.schemas import load_ground_truth
 
 
@@ -82,6 +82,38 @@ def test_gate_g4_dax_reconciliation_pass_and_drift_fail(
                 ],
                 row_count=1,
             )
+        if "BudgetByProduct" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[BudgetByProduct]": None,
+                        "[BudgetByCustomer]": None,
+                        "[BudgetBySalesRep]": None,
+                        "[VarianceByProduct]": None,
+                    }
+                ],
+                row_count=1,
+            )
+        if "NoActualsBudget" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[
+                    {
+                        "[NoActualsBudget]": gt.overall.total_budget,
+                        "[NoActualsVariance]": None,
+                        "[NoActualsStatus]": "No Actuals",
+                        "[NoBudgetStatus]": "No Budget",
+                    }
+                ],
+                row_count=1,
+            )
+        if "MaxDateKey" in dax_query:
+            return DaxQueryResult(
+                ok=True,
+                rows=[{"[MaxDateKey]": 20261231, "[MaxSalesDateKey]": 20261231}],
+                row_count=1,
+            )
         return DaxQueryResult(
             ok=True,
             rows=[
@@ -109,6 +141,8 @@ def test_gate_g4_dax_reconciliation_pass_and_drift_fail(
         gt_path, ToolchainConfig(), repo_root, port=55555, database="DB", skip_benchmark=True
     )
     assert pass_res.status == "PASS"
+    assert pass_res.metrics["future_period_check"]["status"] == "SKIP"
+    assert any(f.code == "G4_FUTURE_PERIOD_CHECK_SKIPPED" for f in pass_res.findings)
 
     def _mock_drift(
         port: int,
@@ -129,7 +163,32 @@ def test_gate_g4_dax_reconciliation_pass_and_drift_fail(
         gt_path, ToolchainConfig(), repo_root, port=55555, database="DB", skip_benchmark=True
     )
     assert fail_res.status == "FAIL"
-    assert any(f.code == "G4_METRIC_MISMATCH" for f in fail_res.findings)
+    codes = {f.code for f in fail_res.findings}
+    assert {"G4_METRIC_MISMATCH", "G4_ACCOUNTING_IDENTITY_MISMATCH"}.issubset(codes)
+
+    def _mock_guard_fail(
+        port: int,
+        dax_query: str,
+        config: ToolchainConfig,
+        repo: Path,
+        database: str = "",
+        roles: str = "",
+        effective_user_name: str = "",
+    ) -> DaxQueryResult:
+        res = _mock_exec(port, dax_query, config, repo, database, roles, effective_user_name)
+        if "BudgetByProduct" in dax_query:
+            res.rows[0]["[BudgetByProduct]"] = 49390714.25
+        if "NoActualsBudget" in dax_query:
+            res.rows[0]["[NoActualsStatus]"] = "Below Target"
+        return res
+
+    monkeypatch.setattr(adomd_adapter, "execute_dax", _mock_guard_fail)
+    guard_fail_res = run_gate_g4(
+        gt_path, ToolchainConfig(), repo_root, port=55555, database="DB", skip_benchmark=True
+    )
+    assert guard_fail_res.status == "FAIL"
+    guard_codes = {f.code for f in guard_fail_res.findings}
+    assert {"G4_CROSS_GRAIN_BUDGET_LEAK", "G4_NO_ACTUALS_STATUS_MISMATCH"}.issubset(guard_codes)
 
 
 def test_gate_g5_rls_fail_closed_verification(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,7 +235,13 @@ def test_gate_g5_rls_fail_closed_verification(monkeypatch: pytest.MonkeyPatch) -
         exp_rep = gt.by_sales_rep_upn[effective_user_name]
         return DaxQueryResult(
             ok=True,
-            rows=[{"[RowCount]": exp_rep.row_count, "[TotalRevenue]": exp_rep.total_revenue}],
+            rows=[
+                {
+                    "[RowCount]": exp_rep.row_count,
+                    "[BudgetRowCount]": 0,
+                    "[TotalRevenue]": exp_rep.total_revenue,
+                }
+            ],
             row_count=1,
         )
 
@@ -187,7 +252,7 @@ def test_gate_g5_rls_fail_closed_verification(monkeypatch: pytest.MonkeyPatch) -
     assert pass_res.status == "PASS"
     assert pass_res.metrics["scenarios_tested"] == 5
 
-    # Simulate fail-open leak for unauthorized user
+    # Simulate fail-open leak for unauthorized user (FactSales + FactBudget)
     def _mock_leak(
         port: int,
         dax_query: str,
@@ -199,7 +264,9 @@ def test_gate_g5_rls_fail_closed_verification(monkeypatch: pytest.MonkeyPatch) -
     ) -> DaxQueryResult:
         if effective_user_name == "unauthorized.user@contoso.com":
             return DaxQueryResult(
-                ok=True, rows=[{"[RowCount]": 12, "[TotalRevenue]": 100.0}], row_count=1
+                ok=True,
+                rows=[{"[RowCount]": 12, "[BudgetRowCount]": 648, "[TotalRevenue]": 100.0}],
+                row_count=1,
             )
         return _mock_rls(port, dax_query, config, repo, database, roles, effective_user_name)
 
@@ -208,7 +275,18 @@ def test_gate_g5_rls_fail_closed_verification(monkeypatch: pytest.MonkeyPatch) -
         req_path, gt_path, ToolchainConfig(), repo_root, port=55555, database="DB"
     )
     assert fail_res.status == "FAIL"
-    assert any(f.code == "G5_FAIL_OPEN_LEAK" for f in fail_res.findings)
+    leak_codes = {f.code for f in fail_res.findings}
+    assert {"G5_FAIL_OPEN_LEAK", "G5_CROSS_FACT_LEAK"}.issubset(leak_codes)
+
+
+def test_gate_g5_offline_passes_on_enterprise_sales() -> None:
+    repo_root = find_repo_root(Path(__file__).resolve())
+    res = run_gate_g5_offline(
+        repo_root / "pbi" / "EnterpriseSales",
+        repo_root / "requirements" / "REQ-002-customer-discount-analytics.yaml",
+    )
+    assert res.status == "SKIP"
+    assert res.metrics["roles_audited"] == 4
 
 
 def test_gate_g7_reports_branch_and_tree(tmp_path: Path) -> None:

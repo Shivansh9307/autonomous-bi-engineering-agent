@@ -28,6 +28,19 @@
     "budget_variance": -646563.43,
     "budget_variance_pct": -0.0131
   },
+  "finance_guards": {
+    "accounting_identity_diff": 0.0,
+    "cross_grain_budget_dimensions": [
+      "DimProduct",
+      "DimCustomer",
+      "DimSalesRep"
+    ],
+    "max_sales_date_key": 20261231,
+    "max_date_key": 20261231,
+    "has_future_budget_periods": false,
+    "expected_no_actuals_status": "No Actuals",
+    "expected_no_budget_status": "No Budget"
+  },
   "by_year": {
     "2024": {
       "total_revenue": 13867030.09,
@@ -77,66 +90,79 @@
   "by_sales_rep_upn": {
     "alice.emea@contoso.com": {
       "row_count": 2099,
+      "budget_row_count": 0,
       "total_revenue": 4138709.12,
       "gross_margin": 1401586.7
     },
     "lukas.emea@contoso.com": {
       "row_count": 2069,
+      "budget_row_count": 0,
       "total_revenue": 4019251.91,
       "gross_margin": 1371077.55
     },
     "chloe.emea@contoso.com": {
       "row_count": 2069,
+      "budget_row_count": 0,
       "total_revenue": 4006343.3,
       "gross_margin": 1351474.3
     },
     "tariq.emea@contoso.com": {
       "row_count": 2032,
+      "budget_row_count": 0,
       "total_revenue": 3997088.02,
       "gross_margin": 1345391.43
     },
     "bob.na@contoso.com": {
       "row_count": 2051,
+      "budget_row_count": 0,
       "total_revenue": 3942628.07,
       "gross_margin": 1331756.48
     },
     "maya.na@contoso.com": {
       "row_count": 2063,
+      "budget_row_count": 0,
       "total_revenue": 3949826.78,
       "gross_margin": 1331290.84
     },
     "liam.na@contoso.com": {
       "row_count": 2078,
+      "budget_row_count": 0,
       "total_revenue": 4123929.23,
       "gross_margin": 1405997.85
     },
     "sofia.na@contoso.com": {
       "row_count": 2157,
+      "budget_row_count": 0,
       "total_revenue": 4165462.56,
       "gross_margin": 1405123.6
     },
     "carol.apac@contoso.com": {
       "row_count": 2103,
+      "budget_row_count": 0,
       "total_revenue": 4086905.75,
       "gross_margin": 1378476.23
     },
     "kenji.apac@contoso.com": {
       "row_count": 2107,
+      "budget_row_count": 0,
       "total_revenue": 4074102.15,
       "gross_margin": 1385669.93
     },
     "aarav.apac@contoso.com": {
       "row_count": 2005,
+      "budget_row_count": 0,
       "total_revenue": 3949397.15,
       "gross_margin": 1325422.67
     },
     "minji.apac@contoso.com": {
       "row_count": 2167,
+      "budget_row_count": 0,
       "total_revenue": 4290506.78,
       "gross_margin": 1441348.28
     },
     "unauthorized.user@contoso.com": {
       "row_count": 0,
+      "budget_row_count": 0,
       "total_revenue": 0.0,
       "gross_margin": 0.0
     }

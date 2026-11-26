@@ -120,19 +120,52 @@ class DimensionalModelSpec(BaseModel):
             if kpi.description and len(kpi.description) > 200:
                 violations.append(f"KPI '{kpi.name}' description exceeds 200 characters.")
 
+        propagates_to: dict[str, set[str]] = {t: set() for t in all_tables}
+        for rel in self.relationships:
+            if rel.is_active and rel.cardinality in ("*:1", "1:1"):
+                propagates_to.setdefault(rel.to_table, set()).add(rel.from_table)
+
         for role in self.rls_roles:
-            if role.table not in all_tables:
+            perms = role.effective_permissions()
+            if not perms:
                 violations.append(
-                    f"RLS role '{role.name}' targets undeclared table '{role.table}'."
+                    f"RLS role '{role.name}' must declare at least one table permission."
                 )
-            if not role.filter.strip():
-                violations.append(f"RLS role '{role.name}' has an empty filter expression.")
+            for perm in perms:
+                if perm.table not in all_tables:
+                    violations.append(
+                        f"RLS role '{role.name}' targets undeclared table '{perm.table}'."
+                    )
+                if not perm.filter.strip():
+                    violations.append(
+                        f"RLS role '{role.name}' has an empty filter expression on '{perm.table}'."
+                    )
             if not role.expected_fail_closed:
                 violations.append(f"RLS role '{role.name}' must set expected_fail_closed=true.")
-            if role.type == "dynamic" and "USERPRINCIPALNAME()" not in role.filter.upper():
+            if role.type == "dynamic" and not any(
+                "USERPRINCIPALNAME()" in perm.filter.upper() for perm in perms
+            ):
                 violations.append(
                     f"Dynamic RLS role '{role.name}' must reference USERPRINCIPALNAME()."
                 )
+
+            covered: set[str] = set()
+            queue = [perm.table for perm in perms if perm.table in all_tables]
+            while queue:
+                curr = queue.pop()
+                if curr in covered:
+                    continue
+                covered.add(curr)
+                for nxt in propagates_to.get(curr, ()):
+                    if nxt not in covered:
+                        queue.append(nxt)
+
+            for fact in self.facts:
+                if fact.name not in covered:
+                    violations.append(
+                        f"RLS role '{role.name}' does not filter or explicitly deny fact table "
+                        f"'{fact.name}' (cross-fact leak risk)."
+                    )
 
         if repo_root is not None:
             for fact in self.facts:

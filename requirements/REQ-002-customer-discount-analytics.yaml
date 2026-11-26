@@ -11,7 +11,7 @@ business_context:
     - Category & Merchandising Managers (Product Detail)
     - Revenue Operations & Pricing Leads (Customer & Discounts)
   decision_questions:
-    - How are Net Revenue, Gross Margin %, and Budget Variance trending across fiscal years and months?
+    - How are Net Revenue, Gross Margin %, and Budget Variance trending across calendar years and months?
     - Which regions (NA, EMEA, APAC) and stores are outperforming or missing margin and budget targets?
     - Which product categories and subcategories drive margin volume versus discounting drag?
     - How do pre-discount Gross Revenue, Discount Rate %, Active Customers, and Revenue per Customer vary across customer segments?
@@ -142,9 +142,12 @@ rls_roles:
     expected_fail_closed: true
   - name: Dynamic_SalesRep
     type: dynamic
-    table: DimSalesRep
-    filter: 'VAR _Custom = CUSTOMDATA() VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME() ) RETURN ''DimSalesRep''[UserPrincipalName] = _Identity'
     expected_fail_closed: true
+    table_permissions:
+      - table: DimSalesRep
+        filter: 'VAR _Custom = CUSTOMDATA() VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME() ) RETURN ''DimSalesRep''[UserPrincipalName] = _Identity'
+      - table: FactBudget
+        filter: "FALSE ()"
     test_principals:
       - alice.emea@contoso.com
       - bob.na@contoso.com

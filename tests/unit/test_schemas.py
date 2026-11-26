@@ -10,6 +10,8 @@ from bi_agent.config import find_repo_root
 from bi_agent.schemas import (
     DimensionalModelSpec,
     GateResult,
+    RlsRequirement,
+    TablePermissionSpec,
     VerificationEvidenceBundle,
     load_ground_truth,
     load_requirement,
@@ -36,7 +38,9 @@ def test_star_schema_rejects_m2m_bidir_and_non_fail_closed_rls() -> None:
         "FactSales[ProductKey] -> DimProduct[ProductKey] (*:*, Both)"
     )
     req.rls_roles[2].expected_fail_closed = False
-    req.rls_roles[2].filter = "'DimSalesRep'[Region] = \"NA\""
+    req.rls_roles[2].table_permissions = [
+        TablePermissionSpec(table="DimSalesRep", filter="'DimSalesRep'[Region] = \"NA\"")
+    ]
 
     spec = DimensionalModelSpec.from_requirement(req)
     violations = spec.validate_star_schema()
@@ -44,6 +48,23 @@ def test_star_schema_rejects_m2m_bidir_and_non_fail_closed_rls() -> None:
     assert any("Bidirectional" in v for v in violations)
     assert any("expected_fail_closed" in v for v in violations)
     assert any("USERPRINCIPALNAME()" in v for v in violations)
+    assert any("FactBudget" in v for v in violations)
+
+
+def test_rls_requirement_table_permissions_helpers() -> None:
+    role = RlsRequirement(
+        name="Dynamic_SalesRep",
+        type="dynamic",
+        table_permissions=[
+            TablePermissionSpec(
+                table="DimSalesRep",
+                filter="'DimSalesRep'[UserPrincipalName] = USERPRINCIPALNAME()",
+            ),
+            TablePermissionSpec(table="FactBudget", filter="FALSE ()"),
+        ],
+    )
+    assert len(role.effective_permissions()) == 2
+    assert role.denied_tables() == {"FactBudget"}
 
 
 def test_page_slug_rejects_spaces_and_dots() -> None:

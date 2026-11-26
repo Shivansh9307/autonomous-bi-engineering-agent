@@ -69,14 +69,26 @@ class RegionMetrics(BaseModel):
 
 class SalesRepMetrics(BaseModel):
     row_count: int
+    budget_row_count: int = 0
     total_revenue: float
     gross_margin: float
+
+
+class FinanceGuardExpectations(BaseModel):
+    accounting_identity_diff: float = 0.0
+    cross_grain_budget_dimensions: list[str] = Field(default_factory=list)
+    max_sales_date_key: int
+    max_date_key: int
+    has_future_budget_periods: bool = False
+    expected_no_actuals_status: str = "No Actuals"
+    expected_no_budget_status: str = "No Budget"
 
 
 class GroundTruthDataset(BaseModel):
     seed: int
     dataset_sha256: dict[str, str] = Field(default_factory=dict)
     overall: OverallMetrics
+    finance_guards: FinanceGuardExpectations | None = None
     by_year: dict[str, YearMetrics] = Field(default_factory=dict)
     by_region: dict[str, RegionMetrics] = Field(default_factory=dict)
     by_sales_rep_upn: dict[str, SalesRepMetrics] = Field(default_factory=dict)

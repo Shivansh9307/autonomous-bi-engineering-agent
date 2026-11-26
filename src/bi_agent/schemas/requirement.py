@@ -54,13 +54,45 @@ class MeasuresSpec(BaseModel):
     kpis: list[KpiDefinition] = Field(default_factory=list)
 
 
+class TablePermissionSpec(BaseModel):
+    table: str
+    filter: str
+
+
 class RlsRequirement(BaseModel):
     name: str
     type: Literal["static", "dynamic"]
-    table: str
-    filter: str
+    table: str = ""
+    filter: str = ""
+    table_permissions: list[TablePermissionSpec] = Field(default_factory=list)
     expected_fail_closed: bool = True
     test_principals: list[str] = Field(default_factory=list)
+
+    def effective_permissions(self) -> list[TablePermissionSpec]:
+        """Return all declared table permissions, supporting legacy single-table fields."""
+        perms = list(self.table_permissions)
+        seen = {p.table for p in perms}
+        if self.table.strip() and self.table not in seen:
+            perms.append(TablePermissionSpec(table=self.table, filter=self.filter))
+        return perms
+
+    def denied_tables(self) -> set[str]:
+        """Return table names whose permission filter explicitly evaluates to FALSE."""
+        denied: set[str] = set()
+        for perm in self.effective_permissions():
+            compact = re.sub(r"\s+", "", perm.filter).upper()
+            if compact in ("FALSE()", "FALSE"):
+                denied.add(perm.table)
+        return denied
+
+    def primary_filter(self) -> str:
+        """Return the primary filter expression for legacy single-table inspection."""
+        if self.filter.strip():
+            return self.filter
+        for perm in self.effective_permissions():
+            if perm.filter.strip():
+                return perm.filter
+        return ""
 
 
 class PageRequirement(BaseModel):
