@@ -50,7 +50,7 @@ Live Power BI Desktop renders captured by Gate `G6` (`pbir desktop screenshot --
 | *Tracks `$48.74M` Net Revenue vs. `$49.39M` Budget (`-$646.56K`), `33.80%` GM%, and monthly revenue-vs-budget trends.* | *Pinpoints the `-$646.56K` miss to `EMEA` (`-1.61%`) and the bottom-5 stores driving `44.0%` of global variance.* |
 | **Product Detail** | **Customer & Discounts** |
 | ![Product Detail](docs/images/product-detail.png) | ![Customer & Discounts](docs/images/customer-discounts.png) |
-| *Surfaces the `905 bps` category GM% spread and the `Edge Gateways Model 41` (`25.39%` GM) SKU margin inversion.* | *Quantifies `$4.37M` (`8.23%`) discount leakage across `300` active customers and `Support Plans` (`8.60%`).* |
+| *Surfaces the `905 bps` category GM% spread and the `Edge Gateways Model 41` (`25.39%` GM) SKU margin inversion.* | *Quantifies `$4.37M` (`8.23%`) discount leakage across `300` active customers and top category `Managed Services` (`8.47%`).* |
 
 ---
 
