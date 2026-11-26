@@ -27,6 +27,8 @@ class BenchmarkResult(BaseModel):
     ok: bool
     cold_avg_ms: float | None = None
     warm_avg_ms: float | None = None
+    cold_max_ms: float | None = None
+    warm_max_ms: float | None = None
     csv_path: str | None = None
     error: str = ""
     raw_output: str = ""
@@ -134,9 +136,11 @@ def export_vpax(
     )
 
 
-def _parse_benchmark_csv(csv_path: Path) -> tuple[float | None, float | None]:
+def _parse_benchmark_csv(
+    csv_path: Path,
+) -> tuple[float | None, float | None, float | None, float | None]:
     if not csv_path.is_file():
-        return None, None
+        return None, None, None, None
     cold_vals: list[float] = []
     warm_vals: list[float] = []
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -166,7 +170,9 @@ def _parse_benchmark_csv(csv_path: Path) -> tuple[float | None, float | None]:
                 warm_vals.append(dur)
     cold_avg = round(sum(cold_vals) / len(cold_vals), 2) if cold_vals else None
     warm_avg = round(sum(warm_vals) / len(warm_vals), 2) if warm_vals else None
-    return cold_avg, warm_avg
+    cold_max = round(max(cold_vals), 2) if cold_vals else None
+    warm_max = round(max(warm_vals), 2) if warm_vals else None
+    return cold_avg, warm_avg, cold_max, warm_max
 
 
 def run_benchmark(
@@ -199,7 +205,7 @@ def run_benchmark(
         ],
         timeout=config.timeouts_seconds.dscmd,
     )
-    cold_avg, warm_avg = _parse_benchmark_csv(output_csv)
+    cold_avg, warm_avg, cold_max, warm_max = _parse_benchmark_csv(output_csv)
     if cold_avg is None or warm_avg is None:
         cold_match = re.search(r"Cold[^\d]*(\d+(?:\.\d+)?)\s*ms", res.combined_output, re.I)
         warm_match = re.search(r"Warm[^\d]*(\d+(?:\.\d+)?)\s*ms", res.combined_output, re.I)
@@ -213,6 +219,8 @@ def run_benchmark(
         ok=ok,
         cold_avg_ms=cold_avg,
         warm_avg_ms=warm_avg,
+        cold_max_ms=cold_max,
+        warm_max_ms=warm_max,
         csv_path=str(output_csv),
         error="" if ok else (res.combined_output or f"dscmd benchmark exited {res.returncode}"),
         raw_output=res.combined_output,

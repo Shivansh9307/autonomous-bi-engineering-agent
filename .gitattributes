@@ -19,3 +19,20 @@ config/bpa/*.json text eol=crlf
 *.vpax binary
 *.abf binary
 *.pbix binary
+
+# Vendored third-party skills (excluded from GitHub Linguist stats)
+/.agents/skills/connect-pbid/** linguist-vendored
+/.agents/skills/create-pbi-report/** linguist-vendored
+/.agents/skills/dax/** linguist-vendored
+/.agents/skills/lineage-analysis/** linguist-vendored
+/.agents/skills/modifying-theme-json/** linguist-vendored
+/.agents/skills/organize-semantic-model/** linguist-vendored
+/.agents/skills/pbi-report-design/** linguist-vendored
+/.agents/skills/pbip/** linguist-vendored
+/.agents/skills/pbir-cli/** linguist-vendored
+/.agents/skills/pbir-format/** linguist-vendored
+/.agents/skills/power-query/** linguist-vendored
+/.agents/skills/refresh-semantic-model/** linguist-vendored
+/.agents/skills/review-report/** linguist-vendored
+/.agents/skills/semantic-model/** linguist-vendored
+/.agents/skills/tmdl/** linguist-vendored

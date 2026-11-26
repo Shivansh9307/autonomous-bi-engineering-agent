@@ -46,7 +46,8 @@
                   "Property": "ProductName"
                 }
               },
-              "nativeQueryRef": "ProductName"
+              "nativeQueryRef": "ProductName",
+              "displayName": "Product Name"
             },
             {
               "queryRef": "_Measures.Total Revenue",
