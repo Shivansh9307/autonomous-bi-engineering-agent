@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from bi_agent.adapters import git_adapter
 from bi_agent.config import find_repo_root
 
 WRITE_TOOLS = {
@@ -102,6 +101,8 @@ def evaluate_pre_tool_use(
                 }
 
             if RAW_GIT_COMMIT_RE.search(stripped) and "bi-agent git-commit" not in stripped.lower():
+                from bi_agent.adapters import git_adapter
+
                 root = _resolve_repo_root(payload, repo_root)
                 if git_adapter.has_pbi_staged(root):
                     evidence = git_adapter.find_matching_evidence(root)

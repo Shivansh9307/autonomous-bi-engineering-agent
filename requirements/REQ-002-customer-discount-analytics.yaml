@@ -4,6 +4,14 @@ owner: Commercial Finance & Revenue Operations
 status: approved
 target_pbip: pbi/EnterpriseSales
 
+project:
+  pbip_path: pbi/EnterpriseSales
+  semantic_model_path: pbi/EnterpriseSales/EnterpriseSales.SemanticModel
+  report_path: pbi/EnterpriseSales/EnterpriseSales.Report
+  ground_truth_path: data/ground_truth/expected_metrics.json
+  raw_data_dir: data/raw
+  desktop_report_name: EnterpriseSales
+
 business_context:
   audience:
     - Chief Revenue Officer & Regional VPs (Executive Overview)
@@ -170,3 +178,258 @@ verification_acceptance:
   perf_budget_warm_ms: 500
   rls_unauthorized_must_return_zero_rows: true
   require_desktop_screenshots: true
+
+verification:
+  dax_checks:
+    scalar_queries:
+      - name: overall
+        scope: overall
+        dax: |
+          EVALUATE
+          ROW(
+              "SalesRows", COUNTROWS('FactSales'),
+              "BudgetRows", COUNTROWS('FactBudget'),
+              "DistinctOrders", DISTINCTCOUNT('FactSales'[SalesOrderID]),
+              "TotalRevenue", [Total Revenue],
+              "TotalCOGS", [Total COGS],
+              "GrossMargin", [Gross Margin],
+              "GrossMarginPct", [Gross Margin %],
+              "TotalUnits", [Total Units],
+              "TotalDiscount", [Total Discount],
+              "AverageOrderValue", [Average Order Value],
+              "BudgetRevenue", [Budget Revenue],
+              "BudgetVariance", [Budget Variance],
+              "BudgetVariancePct", [Budget Variance %]
+          )
+        assertions:
+          - alias: SalesRows
+            expected_path: overall.sales_row_count
+            tolerance: 0.0
+          - alias: BudgetRows
+            expected_path: overall.budget_row_count
+            tolerance: 0.0
+          - alias: DistinctOrders
+            expected_path: overall.distinct_orders
+            tolerance: 0.0
+          - alias: TotalRevenue
+            expected_path: overall.total_revenue
+          - alias: TotalCOGS
+            expected_path: overall.total_cogs
+          - alias: GrossMargin
+            expected_path: overall.gross_margin
+          - alias: GrossMarginPct
+            expected_path: overall.gross_margin_pct
+            tolerance: 0.0005
+          - alias: TotalUnits
+            expected_path: overall.total_units
+            tolerance: 0.0
+          - alias: TotalDiscount
+            expected_path: overall.total_discount
+          - alias: AverageOrderValue
+            expected_path: overall.average_order_value
+          - alias: BudgetRevenue
+            expected_path: overall.total_budget
+          - alias: BudgetVariance
+            expected_path: overall.budget_variance
+          - alias: BudgetVariancePct
+            expected_path: overall.budget_variance_pct
+            tolerance: 0.0005
+      - name: customer_discounts
+        scope: overall
+        dax: |
+          EVALUATE
+          ROW(
+              "GrossRevenue", [Gross Revenue],
+              "DiscountRatePct", [Discount Rate %],
+              "ActiveCustomers", [Active Customers],
+              "RevenuePerCustomer", [Revenue per Customer]
+          )
+        assertions:
+          - alias: GrossRevenue
+            expected_path: overall.gross_revenue
+          - alias: DiscountRatePct
+            expected_path: overall.discount_rate_pct
+            tolerance: 0.0005
+          - alias: ActiveCustomers
+            expected_path: overall.active_customers
+            tolerance: 0.0
+          - alias: RevenuePerCustomer
+            expected_path: overall.revenue_per_customer
+    grouped_queries:
+      - name: by_year
+        scope_prefix: year
+        group_column: Year
+        group_aliases: ["DimDate[Year]"]
+        ground_truth_map_path: by_year
+        dax: |
+          EVALUATE
+          SUMMARIZECOLUMNS(
+              'DimDate'[Year],
+              "TotalRevenue", [Total Revenue],
+              "GrossMargin", [Gross Margin],
+              "BudgetRevenue", [Budget Revenue],
+              "RevenuePY", [Revenue PY],
+              "RevenueYoY", [Revenue YoY],
+              "RevenueYoYPct", [Revenue YoY %]
+          )
+        metrics:
+          - alias: TotalRevenue
+            expected_field: total_revenue
+          - alias: GrossMargin
+            expected_field: gross_margin
+          - alias: BudgetRevenue
+            expected_field: total_budget
+          - alias: RevenuePY
+            expected_field: revenue_py
+            optional: true
+          - alias: RevenueYoY
+            expected_field: revenue_yoy
+            optional: true
+      - name: by_region
+        scope_prefix: region
+        group_column: Region
+        group_aliases: ["DimStore[Region]"]
+        ground_truth_map_path: by_region
+        dax: |
+          EVALUATE
+          SUMMARIZECOLUMNS(
+              'DimStore'[Region],
+              "RowCount", COUNTROWS('FactSales'),
+              "TotalRevenue", [Total Revenue],
+              "GrossMargin", [Gross Margin],
+              "GrossMarginPct", [Gross Margin %],
+              "BudgetRevenue", [Budget Revenue]
+          )
+        metrics:
+          - alias: RowCount
+            expected_field: row_count
+            tolerance: 0.0
+          - alias: TotalRevenue
+            expected_field: total_revenue
+          - alias: GrossMargin
+            expected_field: gross_margin
+          - alias: BudgetRevenue
+            expected_field: total_budget
+    accounting_identities:
+      - name: AccountingIdentity_NetEqGrossMinusDiscount
+        lhs_alias: TotalRevenue
+        rhs_terms:
+          - alias: GrossRevenue
+            sign: 1
+          - alias: TotalDiscount
+            sign: -1
+    cross_grain_blank_checks:
+      - name: cross_grain_budget
+        scope: cross_grain
+        dax: |
+          EVALUATE
+          ROW(
+              "BudgetByProduct", CALCULATE([Budget Revenue], 'DimProduct'[Category] = "Cloud Hardware"),
+              "BudgetByCustomer", CALCULATE([Budget Revenue], 'DimCustomer'[Segment] = "Enterprise"),
+              "BudgetBySalesRep", CALCULATE([Budget Revenue], 'DimSalesRep'[Region] = "EMEA"),
+              "VarianceByProduct", CALCULATE([Budget Variance], 'DimProduct'[Category] = "Cloud Hardware")
+          )
+        expected_blank_aliases:
+          - BudgetByProduct
+          - BudgetByCustomer
+          - BudgetBySalesRep
+          - VarianceByProduct
+    empty_context_guards:
+      - name: no_actuals_guard
+        scope: no_actuals
+        dax: |
+          EVALUATE
+          ROW(
+              "NoActualsBudget",
+                  CALCULATE([Budget Revenue], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
+              "NoActualsVariance",
+                  CALCULATE([Budget Variance], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
+              "NoActualsStatus",
+                  CALCULATE([Budget Attainment Status], 'FactSales'[SalesOrderID] = "__NO_ACTUALS__"),
+              "NoBudgetStatus",
+                  CALCULATE([Budget Attainment Status], 'DimProduct'[Category] = "Cloud Hardware")
+          )
+        numeric_assertions:
+          - alias: NoActualsBudget
+            expected_path: overall.total_budget
+        expected_blank_aliases:
+          - NoActualsVariance
+        string_assertions:
+          - alias: NoActualsStatus
+            expected_path: finance_guards.expected_no_actuals_status
+            expected_value: "No Actuals"
+            scope: no_actuals
+          - alias: NoBudgetStatus
+            expected_path: finance_guards.expected_no_budget_status
+            expected_value: "No Budget"
+            scope: cross_grain
+    future_period_check:
+      date_table_column: "'DimDate'[DateKey]"
+      actuals_date_column: "'FactSales'[DateKey]"
+      must_be_blank_measures:
+        FutureVariance: "[Budget Variance]"
+        FutureYTD: "[Revenue YTD]"
+        FutureRolling3M: "[Revenue Rolling 3M]"
+      budget_measure: "[Budget Revenue]"
+      status_measure: "[Budget Attainment Status]"
+      expected_future_status: "No Actuals"
+      require_active: false
+    benchmark_dax: |
+      EVALUATE
+      SUMMARIZECOLUMNS(
+          'DimStore'[Region],
+          'DimDate'[Year],
+          "TotalRevenue", [Total Revenue],
+          "GrossMarginPct", [Gross Margin %],
+          "BudgetVariancePct", [Budget Variance %]
+      )
+  rls_checks:
+    static_checks:
+      - role: Region_NA
+        scope_column: "'DimStore'[Region]"
+        expected_scope_value: NA
+        ground_truth_entry_path: by_region.NA
+        fact_row_count_fields:
+          FactSales: row_count
+        kpi_assertions:
+          - alias: TotalRevenue
+            dax_expression: "COALESCE([Total Revenue], 0)"
+            expected_field: total_revenue
+      - role: Region_EMEA
+        scope_column: "'DimStore'[Region]"
+        expected_scope_value: EMEA
+        ground_truth_entry_path: by_region.EMEA
+        fact_row_count_fields:
+          FactSales: row_count
+        kpi_assertions:
+          - alias: TotalRevenue
+            dax_expression: "COALESCE([Total Revenue], 0)"
+            expected_field: total_revenue
+      - role: Region_APAC
+        scope_column: "'DimStore'[Region]"
+        expected_scope_value: APAC
+        ground_truth_entry_path: by_region.APAC
+        fact_row_count_fields:
+          FactSales: row_count
+        kpi_assertions:
+          - alias: TotalRevenue
+            dax_expression: "COALESCE([Total Revenue], 0)"
+            expected_field: total_revenue
+    dynamic_checks:
+      - role: Dynamic_SalesRep
+        ground_truth_map_path: by_sales_rep_upn
+        fact_row_count_fields:
+          FactSales: row_count
+          FactBudget: budget_row_count
+        kpi_assertions:
+          - alias: TotalRevenue
+            dax_expression: "COALESCE([Total Revenue], 0)"
+            expected_field: total_revenue
+  report_checks:
+    expected_pages:
+      - "Executive Overview"
+      - "Regional Margin Analysis"
+      - "Product Detail"
+      - "Customer & Discounts"
+    min_visuals_per_page: 1
+    require_screenshot_count_match: true

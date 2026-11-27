@@ -2,7 +2,8 @@
 
 ## 1. Verification-First Rule
 - Never claim a BI change is complete by merely generating files.
-- Every delivery must pass all 7 deterministic verification gates (`bi-agent verify-all`) and produce a fresh `verification-report.json` matching the staged Git tree hash before committing.
+- Every delivery must pass all 8 deterministic verification gates (`G0`-`G7` via `bi-agent verify-all --requirement <REQ>.yaml`) and produce a fresh `verification-report.json` matching the staged Git tree hash before committing.
+- When starting from messy flat files, profile with `bi-agent profile-data` and reconcile raw-to-staged outputs with `bi-agent verify-data` (`G0`) before semantic modeling.
 
 ## 2. Strict Tool Cascade
 - **Semantic Models:** `powerbi-modeling-mcp` first -> `TabularEditor.exe` (`-S` C# TOM / `-A` BPA) -> PowerShell TOM/ADOMD (`connect-pbid`) -> direct `.tmdl` edits (`tmdl` skill) strictly as last resort.

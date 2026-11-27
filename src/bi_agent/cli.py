@@ -12,7 +12,8 @@ from rich.table import Table
 
 from bi_agent import __version__
 from bi_agent.adapters import git_adapter
-from bi_agent.config import find_repo_root, load_toolchain_config, run_doctor
+from bi_agent.config import ToolchainConfig, find_repo_root, load_toolchain_config, run_doctor
+from bi_agent.gates.g0_data_profiling import profile_path, run_gate_g0
 from bi_agent.gates.g1_design_contract import run_gate_g1
 from bi_agent.gates.g2_pbip_structure import run_gate_g2
 from bi_agent.gates.g3_bpa_vpax import run_gate_g3
@@ -21,6 +22,7 @@ from bi_agent.gates.g5_rls_verification import run_gate_g5, run_gate_g5_offline
 from bi_agent.gates.g6_report_visuals import run_gate_g6
 from bi_agent.gates.runner import run_all_gates
 from bi_agent.schemas.evidence import GateResult, VerificationEvidenceBundle
+from bi_agent.schemas.requirement import BusinessRequirement, load_requirement
 
 app = typer.Typer(
     name="bi-agent",
@@ -30,15 +32,64 @@ app = typer.Typer(
 console = Console()
 
 
-def _resolve_requirement(repo_root: Path, req_id: str, requirement_path: Path | None) -> Path:
+def _resolve_requirement(
+    repo_root: Path,
+    req_id: str,
+    requirement_path: Path | None,
+) -> Path:
     if requirement_path is not None:
         if requirement_path.is_absolute():
             return requirement_path
         return repo_root / requirement_path
-    matches = sorted((repo_root / "requirements").glob(f"{req_id}*.yaml"))
-    if matches:
-        return matches[0]
-    return repo_root / "requirements" / "REQ-001-regional-sales-margin.yaml"
+    req_dir = repo_root / "requirements"
+    if req_dir.is_dir():
+        if req_id:
+            matches = sorted(req_dir.glob(f"{req_id}*.yaml"))
+            if matches:
+                return matches[0]
+        all_reqs = sorted(req_dir.glob("*.yaml"))
+        if all_reqs:
+            return all_reqs[0]
+    raise typer.BadParameter(
+        f"No requirement YAML found for req_id='{req_id}' in {req_dir}."
+    )
+
+
+def _resolve_project_context(
+    repo_root: Path,
+    cfg: ToolchainConfig,
+    requirement_path: Path | None,
+    project_dir: Path | None,
+    ground_truth: Path | None,
+) -> tuple[BusinessRequirement | None, Path, Path | None, str]:
+    req: BusinessRequirement | None = None
+    if requirement_path is not None and requirement_path.is_file():
+        req = load_requirement(requirement_path)
+
+    if project_dir is not None:
+        target_project = project_dir if project_dir.is_absolute() else (repo_root / project_dir)
+    elif req is not None and req.resolved_pbip_path():
+        target_project = repo_root / req.resolved_pbip_path()
+    elif cfg.project.pbip_project_dir:
+        target_project = repo_root / cfg.project.pbip_project_dir
+    else:
+        target_project = repo_root
+
+    gt_path: Path | None
+    if ground_truth is not None:
+        gt_path = ground_truth if ground_truth.is_absolute() else (repo_root / ground_truth)
+    elif req is not None and req.resolved_ground_truth_path():
+        gt_path = repo_root / req.resolved_ground_truth_path()
+    elif cfg.project.ground_truth_path:
+        gt_path = repo_root / cfg.project.ground_truth_path
+    else:
+        gt_path = None
+
+    report_name = (
+        (req.resolved_desktop_report_name() if req is not None else "")
+        or cfg.project.desktop_report_name
+    )
+    return req, target_project, gt_path, report_name
 
 
 def _emit_gate(result: GateResult, json_output: bool) -> None:
@@ -148,6 +199,60 @@ def doctor(
     raise typer.Exit(code=0 if all_required_ok else 1)
 
 
+@app.command("profile-data")
+def profile_data(
+    raw_path: Annotated[
+        Path, typer.Argument(help="Raw CSV/TSV file or directory of messy flat files.")
+    ],
+    output_dir: Annotated[
+        Path | None, typer.Option("--output-dir", help="Directory for data-profile.{json,md}.")
+    ] = None,
+    req_id: Annotated[str, typer.Option("--req-id")] = "",
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable JSON output.")
+    ] = False,
+) -> None:
+    """Profile raw flat files, detect defects, and emit policy questions (Gate G0 preflight)."""
+    repo_root = find_repo_root()
+    target = raw_path if raw_path.is_absolute() else (repo_root / raw_path)
+    out = (
+        (output_dir if output_dir.is_absolute() else (repo_root / output_dir))
+        if output_dir is not None
+        else (repo_root / "artifacts" / "runs" / (req_id or "profile"))
+    )
+    report = profile_path(target, req_id=req_id, output_dir=out)
+    if json_output:
+        typer.echo(report.model_dump_json(indent=2))
+    else:
+        console.print(
+            f"[cyan]G0 Profile:[/cyan] {len(report.files)} file(s), "
+            f"{len(report.defects)} defect finding(s), "
+            f"{len(report.policy_questions)} policy question(s)"
+        )
+        console.print(f"Profile JSON: {out / 'data-profile.json'}")
+        console.print(f"Profile MD:   {out / 'data-profile.md'}")
+
+
+@app.command("verify-data")
+def verify_data(
+    requirement_path: Annotated[Path, typer.Argument(help="Requirement YAML path.")],
+    output_dir: Annotated[Path | None, typer.Option("--output-dir")] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable JSON output.")
+    ] = False,
+) -> None:
+    """Enforce messy-data policy sign-offs and raw-to-staged reconciliation (Gate G0)."""
+    repo_root = find_repo_root()
+    req = requirement_path if requirement_path.is_absolute() else (repo_root / requirement_path)
+    out = (
+        (output_dir if output_dir.is_absolute() else (repo_root / output_dir))
+        if output_dir is not None
+        else None
+    )
+    result = run_gate_g0(req, repo_root, output_dir=out)
+    _emit_gate(result, json_output)
+
+
 @app.command("verify-design")
 def verify_design(
     requirement_path: Annotated[Path, typer.Argument(help="Requirement YAML path.")],
@@ -165,6 +270,7 @@ def verify_design(
 @app.command("verify-model")
 def verify_model(
     project_dir: Annotated[Path | None, typer.Option("--project")] = None,
+    requirement: Annotated[Path | None, typer.Option("--requirement")] = None,
     bpa_rules: Annotated[Path | None, typer.Option("--bpa-rules")] = None,
     port: Annotated[int | None, typer.Option("--port")] = None,
     database: Annotated[str, typer.Option("--database")] = "",
@@ -177,10 +283,13 @@ def verify_model(
     """Run PBIP structure, TMDL syntax, TE2 BPA, and VPAX gates (Gates G2 & G3)."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
-    target_project = (
-        project_dir
-        if project_dir is not None
-        else (repo_root / cfg.project.pbip_project_dir)
+    req_path = (
+        (requirement if requirement.is_absolute() else (repo_root / requirement))
+        if requirement is not None
+        else None
+    )
+    _, target_project, _, report_name = _resolve_project_context(
+        repo_root, cfg, req_path, project_dir, None
     )
     g2 = run_gate_g2(target_project, cfg, repo_root)
     g3 = run_gate_g3(
@@ -191,6 +300,7 @@ def verify_model(
         port=port,
         database=database,
         offline=offline,
+        report_name=report_name,
     )
     passed = g2.status == "PASS" and g3.status == "PASS"
     if json_output:
@@ -217,6 +327,7 @@ def verify_model(
 
 @app.command("verify-dax")
 def verify_dax(
+    requirement: Annotated[Path | None, typer.Option("--requirement")] = None,
     ground_truth: Annotated[Path | None, typer.Option("--ground-truth")] = None,
     port: Annotated[int | None, typer.Option("--port")] = None,
     database: Annotated[str, typer.Option("--database")] = "",
@@ -228,11 +339,18 @@ def verify_dax(
     """Reconcile live DAX measures against ground truth and run benchmarks (Gate G4)."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
-    gt_path = (
-        ground_truth
-        if ground_truth is not None
-        else (repo_root / cfg.project.ground_truth_path)
+    req_path = (
+        (requirement if requirement.is_absolute() else (repo_root / requirement))
+        if requirement is not None
+        else None
     )
+    _, _, gt_path, report_name = _resolve_project_context(
+        repo_root, cfg, req_path, None, ground_truth
+    )
+    if gt_path is None:
+        raise typer.BadParameter(
+            "Unable to resolve ground-truth JSON path. Pass --ground-truth or --requirement."
+        )
     result = run_gate_g4(
         gt_path,
         cfg,
@@ -241,6 +359,8 @@ def verify_dax(
         database=database,
         tolerance=tolerance,
         skip_benchmark=skip_benchmark,
+        requirement_path=req_path,
+        report_name=report_name,
     )
     _emit_gate(result, json_output)
 
@@ -262,20 +382,17 @@ def verify_rls(
     """Run offline TMDL RLS contract audit or live ADOMD.NET RLS impersonation (Gate G5)."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
-    req_path = _resolve_requirement(repo_root, "REQ-001", requirement)
+    req_path = _resolve_requirement(repo_root, "", requirement)
+    _, target_project, gt_path, report_name = _resolve_project_context(
+        repo_root, cfg, req_path, project_dir, ground_truth
+    )
     if offline:
-        target_project = (
-            project_dir
-            if project_dir is not None
-            else (repo_root / cfg.project.pbip_project_dir)
-        )
         result = run_gate_g5_offline(target_project, req_path)
     else:
-        gt_path = (
-            ground_truth
-            if ground_truth is not None
-            else (repo_root / cfg.project.ground_truth_path)
-        )
+        if gt_path is None:
+            raise typer.BadParameter(
+                "Unable to resolve ground-truth JSON path. Pass --ground-truth or --requirement."
+            )
         result = run_gate_g5(
             req_path,
             gt_path,
@@ -284,6 +401,7 @@ def verify_rls(
             port=port,
             database=database,
             tolerance=tolerance,
+            report_name=report_name,
         )
     _emit_gate(result, json_output)
 
@@ -291,6 +409,7 @@ def verify_rls(
 @app.command("verify-report")
 def verify_report(
     report_dir: Annotated[Path | None, typer.Option("--report")] = None,
+    requirement: Annotated[Path | None, typer.Option("--requirement")] = None,
     offline: Annotated[bool, typer.Option("--offline")] = False,
     json_output: Annotated[bool, typer.Option("--json")] = False,
     config: Annotated[Path | None, typer.Option("--config")] = None,
@@ -298,14 +417,19 @@ def verify_report(
     """Run pbir validate --all and Desktop screenshot capture (Gate G6)."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
-    target = report_dir if report_dir is not None else (repo_root / cfg.project.pbip_project_dir)
-    result = run_gate_g6(target, cfg, repo_root, offline=offline)
+    req_path = (
+        (requirement if requirement.is_absolute() else (repo_root / requirement))
+        if requirement is not None
+        else None
+    )
+    _, target, _, _ = _resolve_project_context(repo_root, cfg, req_path, report_dir, None)
+    result = run_gate_g6(target, cfg, repo_root, offline=offline, requirement_path=req_path)
     _emit_gate(result, json_output)
 
 
 @app.command("verify-all")
 def verify_all(
-    req_id: Annotated[str, typer.Option("--req-id")] = "REQ-001",
+    req_id: Annotated[str, typer.Option("--req-id")] = "",
     requirement: Annotated[Path | None, typer.Option("--requirement")] = None,
     project_dir: Annotated[Path | None, typer.Option("--project")] = None,
     ground_truth: Annotated[Path | None, typer.Option("--ground-truth")] = None,
@@ -317,22 +441,16 @@ def verify_all(
     json_output: Annotated[bool, typer.Option("--json")] = False,
     config: Annotated[Path | None, typer.Option("--config")] = None,
 ) -> None:
-    """Execute all 7 verification gates and emit Verification Evidence Bundle."""
+    """Execute all 8 verification gates (G0-G7) and emit Verification Evidence Bundle."""
     repo_root = find_repo_root()
     cfg = load_toolchain_config(config_path=config, repo_root=repo_root)
     req_path = _resolve_requirement(repo_root, req_id, requirement)
-    target_project = (
-        project_dir
-        if project_dir is not None
-        else (repo_root / cfg.project.pbip_project_dir)
+    req_obj, target_project, gt_path, _ = _resolve_project_context(
+        repo_root, cfg, req_path, project_dir, ground_truth
     )
-    gt_path = (
-        ground_truth
-        if ground_truth is not None
-        else (repo_root / cfg.project.ground_truth_path)
-    )
+    effective_req_id = req_id or (req_obj.id if req_obj is not None else req_path.stem)
     bundle, json_path, md_path = run_all_gates(
-        req_id=req_id,
+        req_id=effective_req_id,
         requirement_path=req_path,
         project_dir=target_project,
         ground_truth_path=gt_path,

@@ -34,8 +34,10 @@ Use this skill when authoring measures, time-intelligence calculations, KPIs, an
 - **Static Role Example:** `'DimStore'[Region] = "NA"`
 - **Dynamic Role Example:** `'DimSalesRep'[UserPrincipalName] = USERPRINCIPALNAME()`
 - Because relationships are `1:*` `Single` (`DimStore -> FactSales/FactBudget`, `DimSalesRep -> FactSales`), filtering the dimension propagates cleanly to facts without bidirectional cross-filtering.
-- Unauthorized or unmapped UPNs (e.g., `unauthorized.user@contoso.com`) must return **0 rows** (fail closed).
+- **Multi-Fact Isolation:** In multi-fact models, every RLS role must either filter or explicitly deny (`FALSE ()`) every fact table (e.g., `tablePermission FactBudget = FALSE ()` when `DimSalesRep` does not relate to `FactBudget`) to prevent cross-fact leaks.
+- Unauthorized or unmapped UPNs (e.g., `unauthorized.user@contoso.com`) must return **0 rows** across all fact tables (fail closed).
 
-## 4. Empirical Verification (Gates G4 & G5)
-- `bi-agent verify-dax --ground-truth data/ground_truth/expected_metrics.json` -> reconciles overall, by-year, and by-region metrics within `+-0.01` (`+-0.0005` for ratios) and enforces `dscmd benchmark` cold/warm latency budgets.
-- `bi-agent verify-rls --requirement requirements/REQ-001-regional-sales-margin.yaml --ground-truth data/ground_truth/expected_metrics.json` -> verifies static and dynamic `Roles` + `EffectiveUserName` isolation via `scripts/pbid/run_dax_impersonated.ps1`.
+## 4. Empirical Verification (Gates G4 & G5 — Contract-Driven)
+- Declare all DAX reconciliation queries, accounting identities, cross-grain/empty-context/future-period guards, and benchmark DAX inside `verification.dax_checks` in `<requirement.yaml>`, and declare static/dynamic RLS impersonation checks in `verification.rls_checks`.
+- `bi-agent verify-dax --requirement <requirement.yaml>` -> reconciles contracted scalar/grouped queries and guards against `project.ground_truth_path` within `+-0.01` (`+-0.0005` for ratios) and enforces `dscmd benchmark` cold/warm latency budgets.
+- `bi-agent verify-rls --requirement <requirement.yaml>` -> verifies static and dynamic `Roles` + `EffectiveUserName` (with `CUSTOMDATA()` fallback on local workgroup Desktop instances) isolation via `scripts/pbid/run_dax_impersonated.ps1`.

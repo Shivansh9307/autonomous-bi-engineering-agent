@@ -35,6 +35,8 @@ def is_pbi_path(path_str: str) -> bool:
     lower = norm.lower()
     if lower.startswith("pbi/") or "/pbi/" in lower:
         return True
+    if ".semanticmodel/" in lower or ".report/" in lower:
+        return True
     return Path(lower).suffix in {".pbip", ".tmdl", ".pbir", ".pbism"}
 
 
@@ -74,7 +76,7 @@ def verify_evidence_matches_index(repo_root: Path, evidence_path: Path) -> tuple
     return True, f"Verified evidence matches staged tree {tree_sha}"
 
 
-def find_matching_evidence(repo_root: Path) -> Path | None:
+def find_matching_evidence(repo_root: Path, req_id: str | None = None) -> Path | None:
     """Find any passing verification-report.json matching the current staged Git tree SHA."""
     runs_dir = repo_root / "artifacts" / "runs"
     if not runs_dir.is_dir():
@@ -82,7 +84,17 @@ def find_matching_evidence(repo_root: Path) -> Path | None:
     tree_sha = staged_tree_sha(repo_root)
     if not tree_sha:
         return None
+
+    candidates: list[Path] = []
+    if req_id:
+        preferred = runs_dir / req_id / "verification-report.json"
+        if preferred.is_file():
+            candidates.append(preferred)
     for report in sorted(runs_dir.glob("*/verification-report.json")):
+        if report not in candidates:
+            candidates.append(report)
+
+    for report in candidates:
         try:
             bundle = VerificationEvidenceBundle.load_json(report)
         except Exception:

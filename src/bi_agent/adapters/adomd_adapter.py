@@ -25,6 +25,7 @@ class PbidInstance(BaseModel):
     database: str = ""
     database_count: int = 1
     open_target: str | None = None
+    window_title: str | None = None
 
 
 class DiscoveryResult(BaseModel):

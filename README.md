@@ -1,6 +1,6 @@
 # Autonomous BI Engineering Agent System
 
-**Governed Power BI (`PBIP` / `TMDL` / `PBIR`) engineering & Commercial Finance showcase — `$48.74M` Net Revenue, `$16.47M` Gross Margin (`33.80%`), empirically verified across 7 deterministic gates.**
+**Governed Power BI (`PBIP` / `TMDL` / `PBIR`) engineering & Commercial Finance showcase — `$48.74M` Net Revenue, `$16.47M` Gross Margin (`33.80%`), empirically verified across 8 contract-driven deterministic gates (`G0`–`G7`).**
 
 [![BI CI](https://img.shields.io/github/actions/workflow/status/Shivansh9307/autonomous-bi-engineering-agent/bi-ci.yml?branch=main&label=BI%20CI)](https://github.com/Shivansh9307/autonomous-bi-engineering-agent/actions/workflows/bi-ci.yml)
 ![Power BI PBIP TMDL PBIR](https://img.shields.io/badge/Power%20BI-PBIP%20%7C%20TMDL%20%7C%20PBIR-F2C811?logo=powerbi&logoColor=black)
@@ -13,7 +13,7 @@
 
 Commercial Finance leaders require accurate margin-mix visibility, store-level budget accountability, and discount leakage tracking across **$53.12M** Gross Revenue and **$48.74M** Net Revenue (`$16.47M` Gross Margin at `33.80%` GM%, `-$646.56K` Budget Variance across `25,000` sales lines, `12,500` orders, `113,110` units, and `300` active customers).
 
-In practice, conventional BI delivery fails silently through unverified DAX drift, cross-grain store-budget inflation, and multi-fact Row-Level Security (RLS) leaks. This system combines multi-agent Power BI orchestration (`workflows/bi_delivery`) with a **7-gate verification harness (`G1`–`G7`)** that blocks unverified PBIR edits at runtime and binds every Git commit to passing empirical evidence.
+In practice, conventional BI delivery fails silently through unverified DAX drift, cross-grain store-budget inflation, and multi-fact Row-Level Security (RLS) leaks. This system combines domain-agnostic multi-agent Power BI orchestration (`workflows/bi_delivery`) with an **8-gate verification harness (`G0`–`G7`)**—spanning Gate `G0` messy flat-file profiling and raw-to-staged reconciliation ([ADR-0007](docs/adr/0007-gate-g0-data-profiling-and-domain-agnostic-contracts.md)), runtime PBIR hooks, and Git tree-SHA evidence binding.
 
 ---
 
@@ -58,12 +58,13 @@ Live Power BI Desktop renders captured by Gate `G6` (`pbir desktop screenshot --
 
 ```mermaid
 flowchart LR
-    req["REQ-*.yaml (Gate G1 Contract)"]
+    raw["Gate G0: Profile & Reconcile Raw CSVs"]
+    req["REQ-*.yaml (Contract + Verification Checks)"]
     wf["workflows/bi_delivery + Parallel Specialist Auditors"]
     cascade["Model Cascade (MCP -> TE2 -> TOM -> TMDL) + pbir CLI + Pre/Post Hooks"]
-    gates["7 Deterministic Gates (G1-G7: BPA, ADOMD DAX/SLA, RLS, PBIR, Tree SHA)"]
+    gates["8 Deterministic Gates (G0-G7: G0 Recon, BPA, ADOMD DAX/SLA, RLS, PBIR, Tree SHA)"]
     commit["git write-tree SHA-Bound bi-agent git-commit"]
-    req --> wf --> cascade --> gates --> commit
+    raw --> req --> wf --> cascade --> gates --> commit
 ```
 
 ### Showcase Scope (`pbi/EnterpriseSales`)
@@ -74,7 +75,7 @@ flowchart LR
 - **Empirical DAX Truth & Latency SLAs (`G4`):** Reconciles `51` ADOMD.NET assertions within `±0.01`—including `[Total Revenue] = [Gross Revenue] - [Total Discount]` accounting tie-outs, cross-grain `BLANK()` budget guards, and actuals-cutoff time intelligence—while enforcing `<= 1500ms` cold / `<= 500ms` warm SLAs.
 - **Multi-Fact Fail-Closed RLS (`G1` & `G5`):** `Dynamic_SalesRep` combines UPN filtering on `DimSalesRep` with `tablePermission FactBudget = FALSE ()` so sales reps and unauthorized principals see `0` rows across both `FactSales` and `FactBudget` (with [ADR-0006](docs/adr/0006-customdata-rls-testing-shim-and-service-hardening.md) pre-publish `CUSTOMDATA()` hardening).
 - **Strict Tool Cascade & Runtime Guardrails:** `PreToolUse` hooks block direct writes to `*.Report/definition/**/*.json` (enforcing `pbir` CLI exclusively) and block unverified `git commit` invocations.
-- **Tamper-Evident Commits & Fault Injection (`G7`):** `bi-agent git-commit` verifies the staged `git write-tree` SHA against `verification-report.json`, backed by `9` fail-closed fault-injection tests (`tests/fault_injection`).
+- **Tamper-Evident Commits & Fault Injection (`G7`):** `bi-agent git-commit` verifies the staged `git write-tree` SHA against `verification-report.json`, backed by `11` fail-closed fault-injection tests (`tests/fault_injection`).
 - **Clean Authored IP vs. Vendored Provenance:** Authored verification engine, skills, and PBIP showcase are cleanly isolated from `15` third-party skills tagged `linguist-vendored` in [`.gitattributes`](.gitattributes).
 
 ---
@@ -129,8 +130,8 @@ Read the complete 1-page architect blueprint: **[Microsoft Fabric Productionisat
 | Document | Audience | Contents |
 | :--- | :--- | :--- |
 | [Fabric Productionisation Blueprint](docs/PRODUCTIONISATION_BLUEPRINT.md) | Cloud / BI Architects | Git Integration, Deployment Pipelines, Medallion Refresh/Direct Lake, SPN XMLA Gates, `ADR-0006` Hardening |
-| [Operations, Matrix & CLI Reference](docs/OPERATIONS_AND_CLI.md) | BI Engineers & Reviewers | 7-Gate Matrix, `pbi/EnterpriseSales` Inventory, Finance Safeguards, CLI, CI & IP Attribution |
-| [End-to-End Delivery Walkthrough](docs/WALKTHROUGH.md) | Technical Reviewers | Phase-by-phase build history, empirical live `REQ-002` evidence, and 9 fault-injection tests |
-| [Architecture Decision Records](docs/adr/README.md) | Engineering Leads | `ADR-0001` through `ADR-0006` covering harness design, PBIR CLI exclusivity, and RLS hardening |
+| [Operations, Matrix & CLI Reference](docs/OPERATIONS_AND_CLI.md) | BI Engineers & Reviewers | 8-Gate Matrix (`G0`–`G7`), `pbi/EnterpriseSales` Inventory, Finance Safeguards, CLI, CI & IP Attribution |
+| [End-to-End Delivery Walkthrough](docs/WALKTHROUGH.md) | Technical Reviewers | Phase-by-phase build history, empirical live `REQ-002` evidence, and fault-injection design |
+| [Architecture Decision Records](docs/adr/README.md) | Engineering Leads | `ADR-0001` through `ADR-0007` covering Gate `G0`, declarative contracts, PBIR CLI exclusivity, and RLS hardening |
 | [Master Plan](docs/PLAN.md) | Maintainers | Original 7-gate architecture and 3-window delivery cadence |
 | [Phase State Checkpoint](docs/PHASE_STATE.md) | Maintainers & Agents | Concise live status checkpoint (`<= 60` lines) across Phases 1–9 |

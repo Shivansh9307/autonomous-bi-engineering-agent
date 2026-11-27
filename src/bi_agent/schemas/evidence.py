@@ -119,24 +119,68 @@ class VerificationEvidenceBundle(BaseModel):
                         f"(SLA `<= {warm_budget}ms`)"
                     )
                 if has_g5_matrix and isinstance(matrix, list):
+                    fact_columns: list[str] = []
+                    raw_fact_tables = gate.metrics.get("fact_tables")
+                    if isinstance(raw_fact_tables, list) and raw_fact_tables:
+                        fact_columns = [str(item) for item in raw_fact_tables]
+                    else:
+                        seen_facts: set[str] = set()
+                        for entry in matrix:
+                            if not isinstance(entry, dict):
+                                continue
+                            fc = entry.get("fact_counts")
+                            if isinstance(fc, dict):
+                                for fact_name in fc:
+                                    s_name = str(fact_name)
+                                    if s_name not in seen_facts:
+                                        seen_facts.add(s_name)
+                                        fact_columns.append(s_name)
+
                     lines.append("")
-                    lines.append(
-                        "| Role | Principal | FactSales Rows | FactBudget Rows | Status |"
-                    )
-                    lines.append("| :--- | :--- | ---: | ---: | :---: |")
-                    for entry in matrix:
-                        if not isinstance(entry, dict):
-                            continue
-                        role = entry.get("role", "")
-                        principal = entry.get("principal") or "(static)"
-                        sales_val = entry.get("actual_rows")
-                        sales_str = f"{int(sales_val):,}" if sales_val is not None else "N/A"
-                        budget_val = entry.get("actual_budget_rows")
-                        budget_str = f"{int(budget_val):,}" if budget_val is not None else "N/A"
-                        status = entry.get("status", "")
+                    if fact_columns:
+                        header_cols = " | ".join(f"{fc} Rows" for fc in fact_columns)
+                        sep_cols = " | ".join("---:" for _ in fact_columns)
+                        lines.append(f"| Role | Principal | {header_cols} | Status |")
+                        lines.append(f"| :--- | :--- | {sep_cols} | :---: |")
+                        for entry in matrix:
+                            if not isinstance(entry, dict):
+                                continue
+                            role = entry.get("role", "")
+                            principal = entry.get("principal") or "(static)"
+                            fc = entry.get("fact_counts")
+                            fc_map = fc if isinstance(fc, dict) else {}
+                            row_cells: list[str] = []
+                            for col_name in fact_columns:
+                                val = fc_map.get(col_name)
+                                row_cells.append(f"{int(val):,}" if val is not None else "N/A")
+                            status = entry.get("status", "")
+                            lines.append(
+                                f"| {role} | {principal} | {' | '.join(row_cells)} | `{status}` |"
+                            )
+                    else:
                         lines.append(
-                            f"| {role} | {principal} | {sales_str} | {budget_str} | `{status}` |"
+                            "| Role | Principal | Primary Fact Rows "
+                            "| Secondary Fact Rows | Status |"
                         )
+                        lines.append("| :--- | :--- | ---: | ---: | :---: |")
+                        for entry in matrix:
+                            if not isinstance(entry, dict):
+                                continue
+                            role = entry.get("role", "")
+                            principal = entry.get("principal") or "(static)"
+                            primary_val = entry.get("actual_rows")
+                            primary_str = (
+                                f"{int(primary_val):,}" if primary_val is not None else "N/A"
+                            )
+                            secondary_val = entry.get("actual_budget_rows")
+                            secondary_str = (
+                                f"{int(secondary_val):,}" if secondary_val is not None else "N/A"
+                            )
+                            status = entry.get("status", "")
+                            lines.append(
+                                f"| {role} | {principal} | {primary_str} | "
+                                f"{secondary_str} | `{status}` |"
+                            )
                 for finding in gate.findings:
                     loc_str = (
                         to_repo_relative_posix(finding.location, repo_root)

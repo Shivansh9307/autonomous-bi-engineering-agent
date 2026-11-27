@@ -17,6 +17,7 @@ build/
 tmp/
 .pbir/
 artifacts/runs/*/*.vpax
+artifacts/handover-*.md
 
 # OS / Editor
 Thumbs.db

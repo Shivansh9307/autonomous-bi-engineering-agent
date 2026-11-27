@@ -1,6 +1,6 @@
 {
   "name": "bi-delivery",
-  "description": "Multi-stage Antigravity Power BI engineering workflow orchestrating G1 design validation, optional semantic model & PBIR delivery, parallel specialist hygiene/governance audits, and G1-G7 evidence-gated release.",
+  "description": "Domain-agnostic multi-stage Antigravity Power BI engineering workflow orchestrating G0 data profiling/reconciliation, G1 design validation, optional semantic model & PBIR delivery, parallel specialist hygiene/governance audits, and G0-G7 evidence-gated release.",
   "entry": "workflow.py",
   "args": {
     "type": "object",
@@ -20,8 +20,18 @@
       },
       "project_dir": {
         "type": "string",
-        "default": "pbi/EnterpriseSales",
-        "description": "Target PBIP project directory."
+        "default": "",
+        "description": "Optional override for target PBIP project directory (defaults to requirement contract project.pbip_path / target_pbip)."
+      },
+      "raw_data_dir": {
+        "type": "string",
+        "default": "",
+        "description": "Optional raw flat-file directory override for Gate G0 profiling."
+      },
+      "offline": {
+        "type": "boolean",
+        "default": false,
+        "description": "Run offline-only verification gates when live Desktop is unavailable."
       },
       "mode": {
         "type": "string",
@@ -30,12 +40,12 @@
           "audit"
         ],
         "default": "audit",
-        "description": "deliver runs end-to-end model/report authoring + G1-G7 verification; audit runs G1 + parallel specialist audits without mutating artifacts."
+        "description": "deliver runs end-to-end data/model/report authoring + G0-G7 verification; audit runs G0, G1 + parallel specialist audits without mutating artifacts."
       },
       "auto_commit": {
         "type": "boolean",
         "default": false,
-        "description": "When mode=deliver and all 7 gates pass, run bi-agent git-commit."
+        "description": "When mode=deliver and all 8 gates pass, run bi-agent git-commit."
       },
       "allow_main": {
         "type": "boolean",

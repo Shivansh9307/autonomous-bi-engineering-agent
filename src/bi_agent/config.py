@@ -41,8 +41,9 @@ class GatesConfig(BaseModel):
 
 
 class ProjectConfig(BaseModel):
-    pbip_project_dir: str = "pbi/EnterpriseSales"
-    ground_truth_path: str = "data/ground_truth/expected_metrics.json"
+    pbip_project_dir: str = ""
+    ground_truth_path: str = ""
+    desktop_report_name: str = ""
 
 
 class ToolchainConfig(BaseModel):
