@@ -1,0 +1,59 @@
+/// AP invoice approver security dimension.
+table DimApprover
+	lineageTag: 76d411ec-db27-4bf2-a81d-91b510d26ef9
+
+	column ApproverKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 5fa8fe1a-1300-4ab7-9f4e-514d1b562bc2
+		summarizeBy: none
+		sourceColumn: ApproverKey
+
+	column ApproverCode
+		dataType: string
+		lineageTag: 4de73f59-c456-4511-8cc6-cdc5aa7aefb3
+		summarizeBy: none
+		sourceColumn: ApproverCode
+
+	column ApproverName
+		dataType: string
+		lineageTag: a2238302-631a-47c1-bf27-816c34968db2
+		summarizeBy: none
+		sourceColumn: ApproverName
+
+	column RoleTitle
+		dataType: string
+		lineageTag: 7a5fc5a6-5d50-4d0a-8029-1e2677cabb6a
+		summarizeBy: none
+		sourceColumn: RoleTitle
+
+	column BusinessUnit
+		dataType: string
+		lineageTag: e9bbf11e-a08c-45e0-b74a-9b14168606f2
+		summarizeBy: none
+		sourceColumn: BusinessUnit
+
+	column UserPrincipalName
+		dataType: string
+		lineageTag: 43996d5e-3bd2-425e-bf25-b01745e1e5b1
+		summarizeBy: none
+		sourceColumn: UserPrincipalName
+
+	partition DimApprover = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimApprover.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"ApproverKey", Int64.Type},
+				        {"ApproverCode", type text},
+				        {"ApproverName", type text},
+				        {"RoleTitle", type text},
+				        {"BusinessUnit", type text},
+				        {"UserPrincipalName", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

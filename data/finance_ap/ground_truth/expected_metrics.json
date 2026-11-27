@@ -1,0 +1,166 @@
+{
+  "schema_version": "2.0",
+  "domain": "corporate_finance_ap_spend",
+  "overall": {
+    "invoice_line_count": 3500,
+    "budget_row_count": 6912,
+    "distinct_invoices": 1500,
+    "gross_invoice_spend": 35107977.25,
+    "credit_memo_amount": -1600086.41,
+    "net_ap_spend": 33507890.84,
+    "pre_tax_spend": 31562978.69,
+    "tax_spend": 1944912.15,
+    "average_invoice_value": 22338.59,
+    "credit_memo_rate_pct": 0.045576,
+    "budget_spend": 70556530.15,
+    "budget_variance": 37048639.31,
+    "budget_variance_pct": 0.525092,
+    "on_time_payment_pct": 0.459936,
+    "overdue_exposure": 693570.31,
+    "three_way_match_pct": 0.760286,
+    "exception_rate_pct": 0.058857
+  },
+  "by_year": {
+    "2024": {
+      "row_count": 1164,
+      "net_ap_spend": 11148171.71,
+      "gross_invoice_spend": 11645006.76,
+      "credit_memo_amount": -496835.05,
+      "budget_spend": 22206847.32
+    },
+    "2025": {
+      "row_count": 1131,
+      "net_ap_spend": 10686139.56,
+      "gross_invoice_spend": 11204371.62,
+      "credit_memo_amount": -518232.06,
+      "budget_spend": 23415806.69,
+      "net_spend_py": 11148171.71,
+      "net_spend_yoy": -462032.15
+    },
+    "2026": {
+      "row_count": 1205,
+      "net_ap_spend": 11673579.57,
+      "gross_invoice_spend": 12258598.87,
+      "credit_memo_amount": -585019.3,
+      "budget_spend": 24933876.14,
+      "net_spend_py": 10686139.56,
+      "net_spend_yoy": 987440.01
+    }
+  },
+  "by_business_unit": {
+    "APAC": {
+      "row_count": 875,
+      "budget_row_count": 1728,
+      "net_ap_spend": 8361811.83,
+      "gross_invoice_spend": 8785924.8,
+      "credit_memo_amount": -424112.97,
+      "budget_spend": 17688869.3,
+      "budget_variance": 9327057.47
+    },
+    "Europe": {
+      "row_count": 918,
+      "budget_row_count": 1728,
+      "net_ap_spend": 8592639.08,
+      "gross_invoice_spend": 9041912.79,
+      "credit_memo_amount": -449273.71,
+      "budget_spend": 17484289.3,
+      "budget_variance": 8891650.22
+    },
+    "North America": {
+      "row_count": 768,
+      "budget_row_count": 1728,
+      "net_ap_spend": 7267306.79,
+      "gross_invoice_spend": 7655351.83,
+      "credit_memo_amount": -388045.04,
+      "budget_spend": 17686519.42,
+      "budget_variance": 10419212.63
+    },
+    "Shared Services": {
+      "row_count": 851,
+      "budget_row_count": 1728,
+      "net_ap_spend": 8180391.04,
+      "gross_invoice_spend": 8519045.73,
+      "credit_memo_amount": -338654.69,
+      "budget_spend": 17696852.13,
+      "budget_variance": 9516461.09
+    },
+    "Unknown": {
+      "row_count": 88,
+      "budget_row_count": 0,
+      "net_ap_spend": 1105742.1,
+      "gross_invoice_spend": 1105742.1,
+      "credit_memo_amount": 0.0,
+      "budget_spend": 0.0,
+      "budget_variance": -1105742.1
+    }
+  },
+  "by_approver_upn": {
+    "claire.na@finco.example": {
+      "row_count": 391,
+      "budget_row_count": 0,
+      "net_ap_spend": 3720202.71
+    },
+    "diego.eu@finco.example": {
+      "row_count": 458,
+      "budget_row_count": 0,
+      "net_ap_spend": 4286439.03
+    },
+    "elena.eu@finco.example": {
+      "row_count": 469,
+      "budget_row_count": 0,
+      "net_ap_spend": 4426108.57
+    },
+    "hannah.ss@finco.example": {
+      "row_count": 457,
+      "budget_row_count": 0,
+      "net_ap_spend": 4214119.81
+    },
+    "kenji.apac@finco.example": {
+      "row_count": 431,
+      "budget_row_count": 0,
+      "net_ap_spend": 4124237.36
+    },
+    "marcus.na@finco.example": {
+      "row_count": 364,
+      "budget_row_count": 0,
+      "net_ap_spend": 3433289.01
+    },
+    "nadia.ss@finco.example": {
+      "row_count": 403,
+      "budget_row_count": 0,
+      "net_ap_spend": 4052770.77
+    },
+    "priya.apac@finco.example": {
+      "row_count": 440,
+      "budget_row_count": 0,
+      "net_ap_spend": 4245422.11
+    },
+    "unauthorized.user@finco.example": {
+      "row_count": 0,
+      "budget_row_count": 0,
+      "net_ap_spend": 0.0
+    }
+  },
+  "unknown_buckets": {
+    "CostCenterKey_-1": {
+      "row_count": 88,
+      "net_ap_spend": 1105742.1
+    },
+    "ApproverKey_-1": {
+      "row_count": 87,
+      "net_ap_spend": 1005301.47
+    },
+    "VendorKey_-1": {
+      "row_count": 88,
+      "net_ap_spend": 703979.96
+    },
+    "GLAccountKey_-1": {
+      "row_count": 87,
+      "net_ap_spend": 748387.72
+    }
+  },
+  "finance_guards": {
+    "expected_no_actuals_status": "No Actuals",
+    "expected_no_budget_status": "No Budget"
+  }
+}

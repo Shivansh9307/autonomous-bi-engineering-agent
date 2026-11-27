@@ -1,0 +1,10 @@
+ApproverKey,ApproverCode,ApproverName,RoleTitle,BusinessUnit,UserPrincipalName
+-1,UNK,Unassigned Approver,Unassigned,Unknown,
+1,APR-001,Claire Bennett,VP  Finance NA,North America,claire.na@finco.example
+2,APR-002,Diego Morales,Regional Controller EMEA,Europe,diego.eu@finco.example
+3,APR-003,Priya Nair,APAC Finance Director,APAC,priya.apac@finco.example
+4,APR-004,Hannah Brooks,Procurement Lead,Shared Services,hannah.ss@finco.example
+5,APR-005,Marcus Chen,AP  Manager NA,North America,marcus.na@finco.example
+6,APR-006,Elena Weber,Senior AP Specialist,Europe,elena.eu@finco.example
+7,APR-007,Kenji Sato,AP Lead APAC,APAC,kenji.apac@finco.example
+8,APR-008,Nadia Al-Mansoor,Shared Services Controller,Shared Services,nadia.ss@finco.example

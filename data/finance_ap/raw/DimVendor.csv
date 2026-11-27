@@ -1,0 +1,42 @@
+VendorKey,VendorCode,VendorName,VendorCategory,PaymentTerms,Country,VendorTier
+-1,UNK,Unknown Vendor,Unassigned,Net 30,Unknown,Unassigned
+1,VND-0001,Apex  Cloud Infrastructure,Cloud Infrastructure,Net 30,USA,Strategic
+2,VND-0002,Nordic Fiber Networks,Cloud Infrastructure,Net 45,Sweden,Preferred
+3,VND-0003,Vertex Compute Systems,Cloud Infrastructure,Net 30,USA,Strategic
+4,VND-0004,Pacific Data Centers,Cloud Infrastructure,Net 60,Singapore,Preferred
+5,VND-0005,Helios  Cloud Security,Cloud Infrastructure,2/10 Net 30,Germany,Preferred
+6,VND-0006,Kestrel Storage Corp,Cloud Infrastructure,Net 30,UK,Standard
+7,VND-0007,Horizon SaaS Platforms,Enterprise Software,Net 30,USA,Strategic
+8,VND-0008,Boreal Workflow Labs,Enterprise Software,Net 45,Canada,Preferred
+9,VND-0009,Aurelia  ERP Extensions,Enterprise Software,Net 30,Netherlands,Strategic
+10,VND-0010,Cobalt BI Connectors,Enterprise Software,2/10 Net 30,USA,Standard
+11,VND-0011,Solstice IAM Suites,Enterprise Software,Net 30,UK,Preferred
+12,VND-0012,Zephyr Observability,Enterprise Software,Net 45,Australia,Preferred
+13,VND-0013,Mercer  & Hale LLP,Advisory & Legal,Net 30,USA,Strategic
+14,VND-0014,Kensington Tax Partners,Advisory & Legal,Net 45,UK,Strategic
+15,VND-0015,Rheinland Audit GmbH,Advisory & Legal,Net 60,Germany,Preferred
+16,VND-0016,Tanaka Compliance Advisors,Advisory & Legal,Net 30,Japan,Preferred
+17,VND-0017,Clarion  Risk Consulting,Advisory & Legal,Net 30,USA,Standard
+18,VND-0018,Harborline Patent Counsel,Advisory & Legal,Net 45,Singapore,Standard
+19,VND-0019,Ironbridge Facilities Co,Logistics & Facilities,Net 30,USA,Preferred
+20,VND-0020,Thames Corporate Interiors,Logistics & Facilities,Net 45,UK,Standard
+21,VND-0021,Alpine  Green Energy,Logistics & Facilities,Net 30,Switzerland,Preferred
+22,VND-0022,Meridian Freight Dispatch,Logistics & Facilities,2/10 Net 30,USA,Preferred
+23,VND-0023,Kyoto Precision Logistics,Logistics & Facilities,Net 30,Japan,Standard
+24,VND-0024,Southern Cross Couriers,Logistics & Facilities,Net 15,Australia,Standard
+25,VND-0025,Northstar  Brand Studio,Marketing Agencies,Net 30,USA,Preferred
+26,VND-0026,Seine Creative Collective,Marketing Agencies,Net 45,France,Standard
+27,VND-0027,Catalyst Demand Media,Marketing Agencies,2/10 Net 30,USA,Preferred
+28,VND-0028,Lotus Digital Events,Marketing Agencies,Net 30,Singapore,Standard
+29,VND-0029,Redwood  PR Associates,Marketing Agencies,Net 30,Canada,Standard
+30,VND-0030,Metro Outdoor Placements,Marketing Agencies,Net 15,Germany,Standard
+31,VND-0031,Titan Server Hardware,Hardware & Telecom,Net 45,USA,Strategic
+32,VND-0032,Broadlink Telecom Ltd,Hardware & Telecom,Net 30,UK,Preferred
+33,VND-0033,Sakura  Optical Gear,Hardware & Telecom,Net 60,Japan,Preferred
+34,VND-0034,Granite Workstation Inc,Hardware & Telecom,2/10 Net 30,USA,Standard
+35,VND-0035,EuroRack Peripherals,Hardware & Telecom,Net 30,Netherlands,Standard
+36,VND-0036,Indus Cloud Links,Hardware & Telecom,Net 30,India,Standard
+37,VND-0037,Silverline  Travel Corp,Marketing Agencies,Net 15,USA,Preferred
+38,VND-0038,Vanguard Fleet Leasing,Logistics & Facilities,Net 45,Canada,Preferred
+39,VND-0039,Atlas Payroll Services,Advisory & Legal,Net 30,USA,Strategic
+40,VND-0040,Pulse FinOps Automation,Enterprise Software,2/10 Net 30,Ireland,Preferred

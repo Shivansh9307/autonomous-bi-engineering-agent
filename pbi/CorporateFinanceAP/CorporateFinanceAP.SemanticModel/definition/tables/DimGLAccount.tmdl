@@ -1,0 +1,63 @@
+/// General ledger expense account hierarchy dimension.
+table DimGLAccount
+	lineageTag: fcadc7ff-ef73-4192-a773-20569ef11b3c
+
+	column GLAccountKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 9774445f-f0ea-468e-9e06-b2b8b9beebdc
+		summarizeBy: none
+		sourceColumn: GLAccountKey
+
+	column GLAccountCode
+		dataType: string
+		lineageTag: 7be4933f-0497-4b4f-8e08-0e4a489b1cc0
+		summarizeBy: none
+		sourceColumn: GLAccountCode
+
+	column GLAccountName
+		dataType: string
+		lineageTag: 1b48da48-2c02-4c59-8931-9e87b3858724
+		summarizeBy: none
+		sourceColumn: GLAccountName
+
+	column ExpenseGroup
+		dataType: string
+		lineageTag: 5588405e-c9ea-4829-aea7-74af36e438ad
+		summarizeBy: none
+		sourceColumn: ExpenseGroup
+
+	column AccountType
+		dataType: string
+		lineageTag: 3f947c94-5ceb-47ab-adfc-5dc86e8cf1b7
+		summarizeBy: none
+		sourceColumn: AccountType
+
+	hierarchy 'GL Hierarchy'
+		lineageTag: ea09a51e-f816-40cf-963d-194083ceb3ea
+
+		level ExpenseGroup
+			lineageTag: 35d3d27e-d332-4c78-8f83-802c3d62ee83
+			column: ExpenseGroup
+
+		level GLAccountName
+			lineageTag: dc4170c6-86bc-4d8d-8ecb-2ec969bb0ccf
+			column: GLAccountName
+
+	partition DimGLAccount = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimGLAccount.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"GLAccountKey", Int64.Type},
+				        {"GLAccountCode", type text},
+				        {"GLAccountName", type text},
+				        {"ExpenseGroup", type text},
+				        {"AccountType", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

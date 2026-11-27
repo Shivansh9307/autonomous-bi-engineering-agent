@@ -1,0 +1,570 @@
+id: REQ-003
+title: Corporate Finance & AP Spend Analytics (Messy-to-Certified Benchmark)
+owner: Corporate Controllership & Accounts Payable
+status: approved
+target_pbip: pbi/CorporateFinanceAP
+
+project:
+  pbip_path: pbi/CorporateFinanceAP
+  semantic_model_path: pbi/CorporateFinanceAP/CorporateFinanceAP.SemanticModel
+  report_path: pbi/CorporateFinanceAP/CorporateFinanceAP.Report
+  ground_truth_path: data/finance_ap/ground_truth/expected_metrics.json
+  raw_data_dir: data/finance_ap/raw
+  staged_data_dir: data/finance_ap/staged
+  desktop_report_name: CorporateFinanceAP
+
+business_context:
+  audience:
+    - Chief Financial Officer & Corporate Controller (AP Executive Overview)
+    - Procurement & Vendor Risk Leads (Vendor & Credit Analysis)
+    - Business Unit Finance Directors & AP Auditors (Cost Center & Controls)
+  decision_questions:
+    - How are Net AP Spend, Gross Invoice Spend, Credit Memo Recovery, and Budget Variance trending across 2024-2026?
+    - Which vendors, expense groups, and business units drive invoice spend, credit memos, and unmapped Unknown (-1) coding?
+    - Are 3-way match compliance, on-time payment rates, and overdue invoice exposures within AP internal control targets?
+    - Do regional controllers (NA, Europe, APAC) and dynamic invoice approvers see strictly authorized AP & Budget rows?
+
+data_profiling:
+  enabled: true
+  raw_dir: data/finance_ap/raw
+  staged_dir: data/finance_ap/staged
+  quarantine_dir: data/finance_ap/quarantine
+  policy_decisions:
+    deduplication_policy: Drop exact duplicate rows in FactAPInvoices.csv and emit them to quarantine so raw == staged + quarantine.
+    key_uniqueness_policy: Keep deterministic first occurrence on (InvoiceID, LineNumber) and quarantine colliding key-conflict lines.
+    date_parsing_policy: Parse explicit ISO and text dates first, disambiguate slash dates via US MM/DD/YYYY precedence (DueDate >= PostingDate), normalize to ISO YYYY-MM-DD, and derive integer PostingDateKey.
+    currency_numeric_policy: Strip currency tokens ($ and USD), commas, and + signs; convert accounting parentheses to negative 2dp Decimal; scale % strings in EarlyPayDiscountRate to 4dp decimal (excluded from amount reconciliation).
+    whitespace_casing_policy: Trim leading/trailing whitespace, collapse internal double spaces, and normalize canonical casing while preserving -1 Unknown/Unassigned dimension rows.
+    orphan_fk_policy: Map null sentinels ('', NULL, TBD) and unmapped orphan IDs (8888, 9999) to explicit -1 Unknown/Unassigned dimension members.
+    credit_note_sign_policy: Preserve consistently negative signed LineAmount, TaxAmount, and NetAmount on Credit Memo lines and split Gross Invoice Spend vs Credit Memo Amount by DocumentType.
+    grain_resolution_policy: Drop repeated InvoiceHeaderTotal from staged FactAPInvoices.csv to enforce atomic (InvoiceID, LineNumber) line grain alongside first-of-month FactAPBudget grain.
+  tables:
+    - name: FactAPInvoices
+      raw_file: data/finance_ap/raw/FactAPInvoices.csv
+      staged_file: data/finance_ap/staged/FactAPInvoices.csv
+      quarantine_file: data/finance_ap/quarantine/FactAPInvoices_quarantine.csv
+      business_keys: [InvoiceID, LineNumber]
+      date_columns: [PostingDate, DueDate]
+      numeric_columns: [Quantity, UnitPrice, EarlyPayDiscountRate, DaysToPay, IsPaidOnTime]
+      reconcile_amount_columns: [LineAmount, TaxAmount, NetAmount]
+      allow_negative_columns: [LineAmount, TaxAmount, NetAmount]
+      expected_grain: One row per AP invoice line item (InvoiceID + LineNumber)
+      tolerance: 0.01
+      foreign_keys:
+        - column: PostingDateKey
+          target_table: DimDate
+          target_column: DateKey
+        - column: VendorKey
+          target_table: DimVendor
+          target_column: VendorKey
+          allow_unknown_key: -1
+        - column: CostCenterKey
+          target_table: DimCostCenter
+          target_column: CostCenterKey
+          allow_unknown_key: -1
+        - column: GLAccountKey
+          target_table: DimGLAccount
+          target_column: GLAccountKey
+          allow_unknown_key: -1
+        - column: ApproverKey
+          target_table: DimApprover
+          target_column: ApproverKey
+          allow_unknown_key: -1
+    - name: FactAPBudget
+      raw_file: data/finance_ap/raw/FactAPBudget.csv
+      staged_file: data/finance_ap/staged/FactAPBudget.csv
+      business_keys: [PostingDateKey, CostCenterKey, GLAccountKey]
+      date_columns: [PostingDate]
+      reconcile_amount_columns: [BudgetAmount]
+      expected_grain: One row per active cost center per GL account per calendar month
+      tolerance: 0.01
+      foreign_keys:
+        - column: PostingDateKey
+          target_table: DimDate
+          target_column: DateKey
+        - column: CostCenterKey
+          target_table: DimCostCenter
+          target_column: CostCenterKey
+        - column: GLAccountKey
+          target_table: DimGLAccount
+          target_column: GLAccountKey
+    - name: DimDate
+      raw_file: data/finance_ap/raw/DimDate.csv
+      staged_file: data/finance_ap/staged/DimDate.csv
+      business_keys: [DateKey]
+      date_columns: [Date, MonthStart]
+      expected_grain: One row per calendar date (2024-01-01 to 2026-12-31)
+    - name: DimVendor
+      raw_file: data/finance_ap/raw/DimVendor.csv
+      staged_file: data/finance_ap/staged/DimVendor.csv
+      business_keys: [VendorKey]
+      expected_grain: One row per vendor including -1 Unknown Vendor
+    - name: DimCostCenter
+      raw_file: data/finance_ap/raw/DimCostCenter.csv
+      staged_file: data/finance_ap/staged/DimCostCenter.csv
+      business_keys: [CostCenterKey]
+      expected_grain: One row per cost center including -1 Unknown Cost Center
+    - name: DimGLAccount
+      raw_file: data/finance_ap/raw/DimGLAccount.csv
+      staged_file: data/finance_ap/staged/DimGLAccount.csv
+      business_keys: [GLAccountKey]
+      expected_grain: One row per GL expense account including -1 Unknown GL Account
+    - name: DimApprover
+      raw_file: data/finance_ap/raw/DimApprover.csv
+      staged_file: data/finance_ap/staged/DimApprover.csv
+      business_keys: [ApproverKey]
+      expected_grain: One row per AP approver including -1 Unassigned Approver
+
+star_schema:
+  facts:
+    - name: FactAPInvoices
+      grain: One row per AP invoice line item (InvoiceID + LineNumber)
+      source: data/finance_ap/staged/FactAPInvoices.csv
+    - name: FactAPBudget
+      grain: One row per cost center, GL account, and first-of-month PostingDateKey
+      source: data/finance_ap/staged/FactAPBudget.csv
+  dimensions:
+    - name: DimDate
+      key: DateKey
+      mark_as_date_table: Date
+      source: data/finance_ap/staged/DimDate.csv
+      hierarchies:
+        - name: Calendar Hierarchy
+          levels: [Year, Quarter, MonthName]
+    - name: DimVendor
+      key: VendorKey
+      source: data/finance_ap/staged/DimVendor.csv
+      hierarchies:
+        - name: Vendor Hierarchy
+          levels: [VendorCategory, VendorName]
+    - name: DimCostCenter
+      key: CostCenterKey
+      source: data/finance_ap/staged/DimCostCenter.csv
+      hierarchies:
+        - name: Organization Hierarchy
+          levels: [BusinessUnit, Department, CostCenterName]
+    - name: DimGLAccount
+      key: GLAccountKey
+      source: data/finance_ap/staged/DimGLAccount.csv
+      hierarchies:
+        - name: GL Hierarchy
+          levels: [ExpenseGroup, GLAccountName]
+    - name: DimApprover
+      key: ApproverKey
+      source: data/finance_ap/staged/DimApprover.csv
+  relationships:
+    - "FactAPInvoices[PostingDateKey] -> DimDate[DateKey] (*:1, Single)"
+    - "FactAPInvoices[VendorKey] -> DimVendor[VendorKey] (*:1, Single)"
+    - "FactAPInvoices[CostCenterKey] -> DimCostCenter[CostCenterKey] (*:1, Single)"
+    - "FactAPInvoices[GLAccountKey] -> DimGLAccount[GLAccountKey] (*:1, Single)"
+    - "FactAPInvoices[ApproverKey] -> DimApprover[ApproverKey] (*:1, Single)"
+    - "FactAPBudget[PostingDateKey] -> DimDate[DateKey] (*:1, Single)"
+    - "FactAPBudget[CostCenterKey] -> DimCostCenter[CostCenterKey] (*:1, Single)"
+    - "FactAPBudget[GLAccountKey] -> DimGLAccount[GLAccountKey] (*:1, Single)"
+
+measures:
+  display_table: _Measures
+  kpis:
+    - name: Gross Invoice Spend
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Sum of NetAmount across standard Invoice documents before Credit Memo offsets.
+    - name: Credit Memo Amount
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Signed sum of negative NetAmount across Credit Memo lines.
+    - name: Net AP Spend
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Total net accounts payable spend combining Invoices and Credit Memos.
+    - name: Pre-Tax Spend
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Total net pre-tax AP line amount across Invoices and Credit Memos.
+    - name: Tax Spend
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Total net tax amount across AP invoice and credit memo lines.
+    - name: Invoice Count
+      folder: "01 AP Spend & Credits"
+      format: "#,##0"
+      description: Distinct count of AP InvoiceID documents in current filter context.
+    - name: Average Invoice Value
+      folder: "01 AP Spend & Credits"
+      format: "$#,##0.00"
+      description: Net AP Spend divided safely by distinct Invoice Count.
+    - name: Credit Memo Rate %
+      folder: "01 AP Spend & Credits"
+      format: "0.00%"
+      description: Absolute Credit Memo Amount expressed as a share of Gross Invoice Spend.
+    - name: Net Spend PY
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+      description: Prior-year Net AP Spend shifted via SAMEPERIODLASTYEAR on DimDate[Date].
+    - name: Net Spend YoY
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+      description: Year-over-year dollar change in Net AP Spend versus Net Spend PY.
+    - name: Net Spend YoY %
+      folder: "02 Time Intelligence"
+      format: "0.00%"
+      description: Year-over-year percentage change in Net AP Spend over prior year.
+    - name: Net Spend YTD
+      folder: "02 Time Intelligence"
+      format: "$#,##0.00"
+      description: Fiscal/calendar year-to-date cumulative Net AP Spend.
+    - name: Budget Spend
+      folder: "03 Budget & Variance"
+      format: "$#,##0.00"
+      description: Monthly OPEX budget allocation from FactAPBudget at CostCenter x GLAccount grain.
+    - name: Budget Variance
+      folder: "03 Budget & Variance"
+      format: "$#,##0.00"
+      description: Remaining budget headroom (Budget Spend minus Net AP Spend) when both exist.
+    - name: Budget Variance %
+      folder: "03 Budget & Variance"
+      format: "0.00%"
+      description: Budget Variance divided safely by Budget Spend.
+    - name: Budget Utilization Status
+      folder: "03 Budget & Variance"
+      format: "@"
+      description: Attainment classification returning Under Budget, Over Budget, No Actuals, or No Budget.
+    - name: On-Time Payment %
+      folder: "04 Payment & Controls"
+      format: "0.00%"
+      description: Share of Paid invoice lines settled on or before vendor payment terms due date.
+    - name: Overdue Exposure
+      folder: "04 Payment & Controls"
+      format: "$#,##0.00"
+      description: Net AP Spend across invoice lines currently in Overdue payment status.
+    - name: Three-Way Match %
+      folder: "04 Payment & Controls"
+      format: "0.00%"
+      description: Percentage of AP invoice lines verified via full 3-Way Matched controls.
+    - name: Exception Rate %
+      folder: "04 Payment & Controls"
+      format: "0.00%"
+      description: Share of AP invoice lines flagged with MatchStatus Exception controls.
+
+rls_roles:
+  - name: BU_NorthAmerica
+    type: static
+    expected_fail_closed: true
+    table_permissions:
+      - table: DimCostCenter
+        filter: "'DimCostCenter'[BusinessUnit] = \"North America\""
+  - name: BU_Europe
+    type: static
+    expected_fail_closed: true
+    table_permissions:
+      - table: DimCostCenter
+        filter: "'DimCostCenter'[BusinessUnit] = \"Europe\""
+  - name: BU_APAC
+    type: static
+    expected_fail_closed: true
+    table_permissions:
+      - table: DimCostCenter
+        filter: "'DimCostCenter'[BusinessUnit] = \"APAC\""
+  - name: Dynamic_Approver
+    type: dynamic
+    expected_fail_closed: true
+    table_permissions:
+      - table: DimApprover
+        filter: 'VAR _Custom = CUSTOMDATA() VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME() ) RETURN ''DimApprover''[UserPrincipalName] = _Identity'
+      - table: FactAPBudget
+        filter: "FALSE ()"
+    test_principals:
+      - claire.na@finco.example
+      - diego.eu@finco.example
+      - priya.apac@finco.example
+      - unauthorized.user@finco.example
+
+report_pages:
+  - slug: AP_Executive_Overview
+    intent: CFO KPI cards (Net AP Spend, Gross Invoice Spend, Credit Memo Amount, Budget Variance %, On-Time Payment %), monthly spend vs budget trend, and Business Unit summary.
+  - slug: Vendor_And_Credits
+    intent: Vendor category spend mix, Credit Memo recovery diagnostics, top vendors by Net AP Spend, and Early Pay / Payment Terms matrix.
+  - slug: Cost_Center_Controls
+    intent: 3-Way Match compliance, Overdue Exposure & Exception Rate controls, Cost Center vs Budget variance, and Approver workload audit.
+
+verification_acceptance:
+  bpa_max_errors: 0
+  dax_numeric_tolerance: 0.01
+  perf_budget_cold_ms: 1500
+  perf_budget_warm_ms: 500
+  rls_unauthorized_must_return_zero_rows: true
+  require_desktop_screenshots: true
+
+verification:
+  dax_checks:
+    scalar_queries:
+      - name: overall
+        scope: overall
+        dax: |
+          EVALUATE
+          ROW(
+              "InvoiceRows", COUNTROWS('FactAPInvoices'),
+              "BudgetRows", COUNTROWS('FactAPBudget'),
+              "DistinctInvoices", [Invoice Count],
+              "GrossInvoiceSpend", [Gross Invoice Spend],
+              "CreditMemoAmount", [Credit Memo Amount],
+              "NetAPSpend", [Net AP Spend],
+              "PreTaxSpend", [Pre-Tax Spend],
+              "TaxSpend", [Tax Spend],
+              "AverageInvoiceValue", [Average Invoice Value],
+              "CreditMemoRatePct", [Credit Memo Rate %],
+              "BudgetSpend", [Budget Spend],
+              "BudgetVariance", [Budget Variance],
+              "BudgetVariancePct", [Budget Variance %]
+          )
+        assertions:
+          - alias: InvoiceRows
+            expected_path: overall.invoice_line_count
+            tolerance: 0.0
+          - alias: BudgetRows
+            expected_path: overall.budget_row_count
+            tolerance: 0.0
+          - alias: DistinctInvoices
+            expected_path: overall.distinct_invoices
+            tolerance: 0.0
+          - alias: GrossInvoiceSpend
+            expected_path: overall.gross_invoice_spend
+          - alias: CreditMemoAmount
+            expected_path: overall.credit_memo_amount
+          - alias: NetAPSpend
+            expected_path: overall.net_ap_spend
+          - alias: PreTaxSpend
+            expected_path: overall.pre_tax_spend
+          - alias: TaxSpend
+            expected_path: overall.tax_spend
+          - alias: AverageInvoiceValue
+            expected_path: overall.average_invoice_value
+          - alias: CreditMemoRatePct
+            expected_path: overall.credit_memo_rate_pct
+            tolerance: 0.0005
+          - alias: BudgetSpend
+            expected_path: overall.budget_spend
+          - alias: BudgetVariance
+            expected_path: overall.budget_variance
+          - alias: BudgetVariancePct
+            expected_path: overall.budget_variance_pct
+            tolerance: 0.0005
+      - name: payment_controls
+        scope: overall
+        dax: |
+          EVALUATE
+          ROW(
+              "OnTimePaymentPct", [On-Time Payment %],
+              "OverdueExposure", [Overdue Exposure],
+              "ThreeWayMatchPct", [Three-Way Match %],
+              "ExceptionRatePct", [Exception Rate %]
+          )
+        assertions:
+          - alias: OnTimePaymentPct
+            expected_path: overall.on_time_payment_pct
+            tolerance: 0.0005
+          - alias: OverdueExposure
+            expected_path: overall.overdue_exposure
+          - alias: ThreeWayMatchPct
+            expected_path: overall.three_way_match_pct
+            tolerance: 0.0005
+          - alias: ExceptionRatePct
+            expected_path: overall.exception_rate_pct
+            tolerance: 0.0005
+    grouped_queries:
+      - name: by_year
+        scope_prefix: year
+        group_column: Year
+        group_aliases: ["DimDate[Year]"]
+        ground_truth_map_path: by_year
+        dax: |
+          EVALUATE
+          SUMMARIZECOLUMNS(
+              'DimDate'[Year],
+              "NetAPSpend", [Net AP Spend],
+              "GrossInvoiceSpend", [Gross Invoice Spend],
+              "CreditMemoAmount", [Credit Memo Amount],
+              "BudgetSpend", [Budget Spend],
+              "NetSpendPY", [Net Spend PY],
+              "NetSpendYoY", [Net Spend YoY]
+          )
+        metrics:
+          - alias: NetAPSpend
+            expected_field: net_ap_spend
+          - alias: GrossInvoiceSpend
+            expected_field: gross_invoice_spend
+          - alias: CreditMemoAmount
+            expected_field: credit_memo_amount
+          - alias: BudgetSpend
+            expected_field: budget_spend
+          - alias: NetSpendPY
+            expected_field: net_spend_py
+            optional: true
+          - alias: NetSpendYoY
+            expected_field: net_spend_yoy
+            optional: true
+      - name: by_business_unit
+        scope_prefix: business_unit
+        group_column: BusinessUnit
+        group_aliases: ["DimCostCenter[BusinessUnit]"]
+        ground_truth_map_path: by_business_unit
+        dax: |
+          EVALUATE
+          SUMMARIZECOLUMNS(
+              'DimCostCenter'[BusinessUnit],
+              "RowCount", COUNTROWS('FactAPInvoices'),
+              "NetAPSpend", [Net AP Spend],
+              "GrossInvoiceSpend", [Gross Invoice Spend],
+              "CreditMemoAmount", [Credit Memo Amount],
+              "BudgetSpend", COALESCE([Budget Spend], 0)
+          )
+        metrics:
+          - alias: RowCount
+            expected_field: row_count
+            tolerance: 0.0
+          - alias: NetAPSpend
+            expected_field: net_ap_spend
+          - alias: GrossInvoiceSpend
+            expected_field: gross_invoice_spend
+          - alias: CreditMemoAmount
+            expected_field: credit_memo_amount
+          - alias: BudgetSpend
+            expected_field: budget_spend
+    accounting_identities:
+      - name: AccountingIdentity_NetEqGrossPlusCreditMemo
+        lhs_alias: NetAPSpend
+        rhs_terms:
+          - alias: GrossInvoiceSpend
+            sign: 1
+          - alias: CreditMemoAmount
+            sign: 1
+      - name: AccountingIdentity_NetEqPreTaxPlusTax
+        lhs_alias: NetAPSpend
+        rhs_terms:
+          - alias: PreTaxSpend
+            sign: 1
+          - alias: TaxSpend
+            sign: 1
+    cross_grain_blank_checks:
+      - name: cross_grain_budget
+        scope: cross_grain
+        dax: |
+          EVALUATE
+          ROW(
+              "BudgetByVendor", CALCULATE([Budget Spend], 'DimVendor'[VendorCategory] = "Cloud Infrastructure"),
+              "BudgetByApprover", CALCULATE([Budget Spend], 'DimApprover'[BusinessUnit] = "North America"),
+              "VarianceByVendor", CALCULATE([Budget Variance], 'DimVendor'[VendorCategory] = "Cloud Infrastructure")
+          )
+        expected_blank_aliases:
+          - BudgetByVendor
+          - BudgetByApprover
+          - VarianceByVendor
+    empty_context_guards:
+      - name: no_actuals_guard
+        scope: no_actuals
+        dax: |
+          EVALUATE
+          ROW(
+              "NoActualsBudget",
+                  CALCULATE([Budget Spend], 'FactAPInvoices'[InvoiceID] = "__NO_ACTUALS__"),
+              "NoActualsVariance",
+                  CALCULATE([Budget Variance], 'FactAPInvoices'[InvoiceID] = "__NO_ACTUALS__"),
+              "NoActualsStatus",
+                  CALCULATE([Budget Utilization Status], 'FactAPInvoices'[InvoiceID] = "__NO_ACTUALS__"),
+              "NoBudgetStatus",
+                  CALCULATE([Budget Utilization Status], 'DimVendor'[VendorCategory] = "Cloud Infrastructure")
+          )
+        numeric_assertions:
+          - alias: NoActualsBudget
+            expected_path: overall.budget_spend
+        expected_blank_aliases:
+          - NoActualsVariance
+        string_assertions:
+          - alias: NoActualsStatus
+            expected_path: finance_guards.expected_no_actuals_status
+            expected_value: "No Actuals"
+            scope: no_actuals
+          - alias: NoBudgetStatus
+            expected_path: finance_guards.expected_no_budget_status
+            expected_value: "No Budget"
+            scope: cross_grain
+    future_period_check:
+      date_table_column: "'DimDate'[DateKey]"
+      actuals_date_column: "'FactAPInvoices'[PostingDateKey]"
+      must_be_blank_measures:
+        FutureVariance: "[Budget Variance]"
+        FutureYTD: "[Net Spend YTD]"
+      budget_measure: "[Budget Spend]"
+      status_measure: "[Budget Utilization Status]"
+      expected_future_status: "No Actuals"
+      require_active: false
+    benchmark_dax: |
+      EVALUATE
+      SUMMARIZECOLUMNS(
+          'DimCostCenter'[BusinessUnit],
+          'DimDate'[Year],
+          "NetAPSpend", [Net AP Spend],
+          "BudgetVariancePct", [Budget Variance %],
+          "ThreeWayMatchPct", [Three-Way Match %]
+      )
+  rls_checks:
+    static_checks:
+      - role: BU_NorthAmerica
+        scope_column: "'DimCostCenter'[BusinessUnit]"
+        expected_scope_value: North America
+        ground_truth_entry_path: by_business_unit.North America
+        fact_row_count_fields:
+          FactAPInvoices: row_count
+          FactAPBudget: budget_row_count
+        kpi_assertions:
+          - alias: NetAPSpend
+            dax_expression: "COALESCE([Net AP Spend], 0)"
+            expected_field: net_ap_spend
+          - alias: BudgetSpend
+            dax_expression: "COALESCE([Budget Spend], 0)"
+            expected_field: budget_spend
+      - role: BU_Europe
+        scope_column: "'DimCostCenter'[BusinessUnit]"
+        expected_scope_value: Europe
+        ground_truth_entry_path: by_business_unit.Europe
+        fact_row_count_fields:
+          FactAPInvoices: row_count
+          FactAPBudget: budget_row_count
+        kpi_assertions:
+          - alias: NetAPSpend
+            dax_expression: "COALESCE([Net AP Spend], 0)"
+            expected_field: net_ap_spend
+          - alias: BudgetSpend
+            dax_expression: "COALESCE([Budget Spend], 0)"
+            expected_field: budget_spend
+      - role: BU_APAC
+        scope_column: "'DimCostCenter'[BusinessUnit]"
+        expected_scope_value: APAC
+        ground_truth_entry_path: by_business_unit.APAC
+        fact_row_count_fields:
+          FactAPInvoices: row_count
+          FactAPBudget: budget_row_count
+        kpi_assertions:
+          - alias: NetAPSpend
+            dax_expression: "COALESCE([Net AP Spend], 0)"
+            expected_field: net_ap_spend
+          - alias: BudgetSpend
+            dax_expression: "COALESCE([Budget Spend], 0)"
+            expected_field: budget_spend
+    dynamic_checks:
+      - role: Dynamic_Approver
+        ground_truth_map_path: by_approver_upn
+        fact_row_count_fields:
+          FactAPInvoices: row_count
+          FactAPBudget: budget_row_count
+        kpi_assertions:
+          - alias: NetAPSpend
+            dax_expression: "COALESCE([Net AP Spend], 0)"
+            expected_field: net_ap_spend
+  report_checks:
+    expected_pages:
+      - "AP Executive Overview"
+      - "Vendor & Credit Analysis"
+      - "Cost Center & Controls"
+    min_visuals_per_page: 1
+    require_screenshot_count_match: true

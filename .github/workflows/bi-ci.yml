@@ -44,6 +44,12 @@ jobs:
       - name: Verify REQ-002 design contract (Gate G1)
         run: uv run bi-agent verify-design requirements/REQ-002-customer-discount-analytics.yaml
 
+      - name: Verify REQ-003 Gate G0 data reconciliation
+        run: uv run bi-agent verify-data requirements/REQ-003-corporate-ap-spend.yaml
+
+      - name: Verify REQ-003 design contract (Gate G1)
+        run: uv run bi-agent verify-design requirements/REQ-003-corporate-ap-spend.yaml
+
   bi-offline-gates:
     name: Windows BI Offline Gates (G0-G3, G6, G7) & Fault Injection
     runs-on: windows-latest
@@ -87,6 +93,9 @@ jobs:
 
       - name: Run REQ-002 offline verification gates
         run: uv run bi-agent verify-all --req-id REQ-002 --requirement requirements/REQ-002-customer-discount-analytics.yaml --offline
+
+      - name: Run REQ-003 offline verification gates
+        run: uv run bi-agent verify-all --req-id REQ-003 --requirement requirements/REQ-003-corporate-ap-spend.yaml --offline
 
       - name: Run fail-closed fault-injection suite
         run: uv run pytest tests/fault_injection -p no:cacheprovider -v

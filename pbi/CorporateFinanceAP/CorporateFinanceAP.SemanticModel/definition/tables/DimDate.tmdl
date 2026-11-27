@@ -1,0 +1,128 @@
+/// Calendar date dimension covering 2024-2026.
+table DimDate
+	lineageTag: 2552f368-be30-47b7-855a-6a52a6ecc546
+	dataCategory: Time
+
+	column DateKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: a884348f-d7df-44dc-b984-8be8f42fcfad
+		summarizeBy: none
+		sourceColumn: DateKey
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: yyyy-mm-dd
+		lineageTag: 3db0a6e6-fd63-450b-b910-6b4472c38bcc
+		summarizeBy: none
+		sourceColumn: Date
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 5a5914ce-0119-4529-b7da-77daa1d71f88
+		summarizeBy: none
+		sourceColumn: Year
+
+	column Quarter
+		dataType: string
+		lineageTag: 6d984c12-4202-47e3-8c70-cb47ea52c5a2
+		summarizeBy: none
+		sourceColumn: Quarter
+		sortByColumn: QuarterNumber
+
+	column QuarterNumber
+		dataType: int64
+		isHidden
+		lineageTag: 2365ec10-0cc8-4860-aebf-8d842467d4bc
+		summarizeBy: none
+		sourceColumn: QuarterNumber
+
+	column MonthNumber
+		dataType: int64
+		isHidden
+		lineageTag: ba792b76-cc24-40c2-8308-f6a84574fd35
+		summarizeBy: none
+		sourceColumn: MonthNumber
+
+	column MonthName
+		dataType: string
+		lineageTag: 197f425f-bfa8-4868-a8e2-879080b04582
+		summarizeBy: none
+		sourceColumn: MonthName
+		sortByColumn: MonthNumber
+
+	column YearMonth
+		dataType: string
+		lineageTag: 59e1df8f-12e0-4b4b-9c48-856cb3df5ee1
+		summarizeBy: none
+		sourceColumn: YearMonth
+		sortByColumn: YearMonthSort
+
+	column YearMonthSort
+		dataType: int64
+		isHidden
+		lineageTag: a36fa301-2037-4096-9536-03f67d797648
+		summarizeBy: none
+		sourceColumn: YearMonthSort
+
+	column DayOfWeek
+		dataType: string
+		lineageTag: b77eb45f-bfa6-4e0e-ae7c-99e19e53a97a
+		summarizeBy: none
+		sourceColumn: DayOfWeek
+
+	column IsWeekend
+		dataType: int64
+		formatString: 0
+		lineageTag: c44a6fa1-aa86-4db6-8b4c-3e6fd904df04
+		summarizeBy: none
+		sourceColumn: IsWeekend
+
+	column MonthStart
+		dataType: dateTime
+		formatString: mmm yyyy
+		lineageTag: afd6a0e7-7d09-46c3-b47b-18e54c6a743b
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+	hierarchy 'Calendar Hierarchy'
+		lineageTag: f4e9c12d-7a86-4e7a-89af-0ff30706e9c3
+
+		level Year
+			lineageTag: e076c4c3-261c-4bdc-ba3b-ce5e574f4fa4
+			column: Year
+
+		level Quarter
+			lineageTag: 86670ed3-d143-4a7b-b6e1-1f25155abe18
+			column: Quarter
+
+		level MonthName
+			lineageTag: 7736bfb8-ea71-451e-85ac-12a9cc9b7657
+			column: MonthName
+
+	partition DimDate = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimDate.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"DateKey", Int64.Type},
+				        {"Date", type date},
+				        {"Year", Int64.Type},
+				        {"Quarter", type text},
+				        {"QuarterNumber", Int64.Type},
+				        {"MonthNumber", Int64.Type},
+				        {"MonthName", type text},
+				        {"YearMonth", type text},
+				        {"YearMonthSort", Int64.Type},
+				        {"DayOfWeek", type text},
+				        {"IsWeekend", Int64.Type},
+				        {"MonthStart", type date}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

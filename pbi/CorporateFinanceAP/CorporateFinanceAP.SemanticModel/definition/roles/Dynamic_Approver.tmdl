@@ -1,0 +1,12 @@
+/// Dynamic fail-closed RLS filtering AP invoices by approver UPN and denying budget access.
+role Dynamic_Approver
+	modelPermission: read
+
+	tablePermission DimApprover =
+			VAR _Custom = CUSTOMDATA ()
+			VAR _Identity = IF ( _Custom <> "", _Custom, USERPRINCIPALNAME () )
+			RETURN
+			    'DimApprover'[UserPrincipalName] = _Identity
+
+	tablePermission FactAPBudget = FALSE ()
+

@@ -1,0 +1,189 @@
+/// Staged AP invoice and credit memo line items at InvoiceID + LineNumber grain.
+table FactAPInvoices
+	lineageTag: 6d23b9c8-81ce-4ef5-9e60-e8af81ef0dc3
+
+	column InvoiceID
+		dataType: string
+		lineageTag: 909180c3-8f25-4b2c-89bc-7a0fa59b6568
+		summarizeBy: none
+		sourceColumn: InvoiceID
+
+	column LineNumber
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 397a8719-8808-4c07-abf1-aa05ca2d1c64
+		summarizeBy: none
+		sourceColumn: LineNumber
+
+	column PostingDateKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: fec807d8-9d7b-42a4-a7a3-64d90df71569
+		summarizeBy: none
+		sourceColumn: PostingDateKey
+
+	column PostingDate
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		isAvailableInMdx: false
+		lineageTag: b3883b7c-78df-44ea-b2af-1cf97236130e
+		summarizeBy: none
+		sourceColumn: PostingDate
+
+	column DueDate
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		isAvailableInMdx: false
+		lineageTag: aa859974-cd88-47f5-8259-19fbdeb3eeaa
+		summarizeBy: none
+		sourceColumn: DueDate
+
+	column VendorKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 26b1e34a-1cd9-4991-9488-bce143ed2789
+		summarizeBy: none
+		sourceColumn: VendorKey
+
+	column CostCenterKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 70360fc0-1eb9-4d9f-87f4-26064c6382d4
+		summarizeBy: none
+		sourceColumn: CostCenterKey
+
+	column GLAccountKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 11e96510-5448-4225-8934-daf3ef7a72e6
+		summarizeBy: none
+		sourceColumn: GLAccountKey
+
+	column ApproverKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 98d2acfd-e152-45b1-ad56-6b2921ad032f
+		summarizeBy: none
+		sourceColumn: ApproverKey
+
+	column DocumentType
+		dataType: string
+		lineageTag: dd8311f9-fa0c-41c2-aefe-ef440d57da66
+		summarizeBy: none
+		sourceColumn: DocumentType
+
+	column PaymentStatus
+		dataType: string
+		lineageTag: fd72f45f-6454-414b-82c5-858aa608f0b3
+		summarizeBy: none
+		sourceColumn: PaymentStatus
+
+	column MatchStatus
+		dataType: string
+		lineageTag: c4548de8-1ec2-460c-8f36-cdae7a9c441b
+		summarizeBy: none
+		sourceColumn: MatchStatus
+
+	column Quantity
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 3bcac456-5c1f-4613-b532-0232d6fa92d0
+		summarizeBy: none
+		sourceColumn: Quantity
+
+	column UnitPrice
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: b59c902b-c1e0-42be-93a7-36d460af6f42
+		summarizeBy: none
+		sourceColumn: UnitPrice
+
+	column LineAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: f3f69e3c-4051-433b-96f3-383466a24d90
+		summarizeBy: none
+		sourceColumn: LineAmount
+
+	column TaxAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 62b428dc-d2ca-4c4c-8da3-1a11ec132230
+		summarizeBy: none
+		sourceColumn: TaxAmount
+
+	column NetAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 674353d7-1300-4e3e-b120-0e355adb25d5
+		summarizeBy: none
+		sourceColumn: NetAmount
+
+	column EarlyPayDiscountRate
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: bae57900-23ad-4c10-b151-1ea59214eada
+		summarizeBy: none
+		sourceColumn: EarlyPayDiscountRate
+
+	column DaysToPay
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 1d265549-7b2e-4676-a70a-d9123436f56c
+		summarizeBy: none
+		sourceColumn: DaysToPay
+
+	column IsPaidOnTime
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 011264cc-3dae-46be-bcd4-718f76af399f
+		summarizeBy: none
+		sourceColumn: IsPaidOnTime
+
+	partition FactAPInvoices = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\FactAPInvoices.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"InvoiceID", type text},
+				        {"LineNumber", Int64.Type},
+				        {"PostingDateKey", Int64.Type},
+				        {"PostingDate", type date},
+				        {"DueDate", type date},
+				        {"VendorKey", Int64.Type},
+				        {"CostCenterKey", Int64.Type},
+				        {"GLAccountKey", Int64.Type},
+				        {"ApproverKey", Int64.Type},
+				        {"DocumentType", type text},
+				        {"PaymentStatus", type text},
+				        {"MatchStatus", type text},
+				        {"Quantity", Int64.Type},
+				        {"UnitPrice", Currency.Type},
+				        {"LineAmount", Currency.Type},
+				        {"TaxAmount", Currency.Type},
+				        {"NetAmount", Currency.Type},
+				        {"EarlyPayDiscountRate", Currency.Type},
+				        {"DaysToPay", Int64.Type},
+				        {"IsPaidOnTime", Int64.Type}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

@@ -1,0 +1,6 @@
+/// Static RLS isolating North America Business Unit.
+role BU_NorthAmerica
+	modelPermission: read
+
+	tablePermission DimCostCenter = 'DimCostCenter'[BusinessUnit] = "North America"
+

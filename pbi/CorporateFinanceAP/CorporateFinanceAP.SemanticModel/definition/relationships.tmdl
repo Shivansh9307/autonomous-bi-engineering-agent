@@ -1,0 +1,32 @@
+relationship e40b9e4e-17db-4128-997e-749eb1fa4f7c
+	fromColumn: FactAPInvoices.PostingDateKey
+	toColumn: DimDate.DateKey
+
+relationship 1bc4560f-f948-4460-8a7c-d1fec9354650
+	fromColumn: FactAPInvoices.VendorKey
+	toColumn: DimVendor.VendorKey
+
+relationship a8056a9c-6088-49ea-b7d1-8d06da3c989e
+	fromColumn: FactAPInvoices.CostCenterKey
+	toColumn: DimCostCenter.CostCenterKey
+
+relationship 98bc6f25-e8e2-4672-af1d-4e3c5a901b5a
+	fromColumn: FactAPInvoices.GLAccountKey
+	toColumn: DimGLAccount.GLAccountKey
+
+relationship 7fc7ee1a-2962-44be-a17c-9ae4cbaf3317
+	fromColumn: FactAPInvoices.ApproverKey
+	toColumn: DimApprover.ApproverKey
+
+relationship 4625a011-d32e-4a1f-9e69-e15a79b004bc
+	fromColumn: FactAPBudget.PostingDateKey
+	toColumn: DimDate.DateKey
+
+relationship a1e37b48-730e-4123-a051-a8884c39da6b
+	fromColumn: FactAPBudget.CostCenterKey
+	toColumn: DimCostCenter.CostCenterKey
+
+relationship a696766c-9309-42cd-8b38-8eb693673165
+	fromColumn: FactAPBudget.GLAccountKey
+	toColumn: DimGLAccount.GLAccountKey
+
