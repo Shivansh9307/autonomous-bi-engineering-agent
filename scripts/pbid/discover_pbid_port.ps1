@@ -122,10 +122,12 @@ try {
         }
         $openTarget = $null
         if ($desktopInfo) {
-            if ($desktopInfo.PSObject.Properties["reportPath"]) { $openTarget = [string]$desktopInfo.reportPath }
-            elseif ($desktopInfo.PSObject.Properties["path"]) { $openTarget = [string]$desktopInfo.path }
-            elseif ($desktopInfo.PSObject.Properties["file"]) { $openTarget = [string]$desktopInfo.file }
-            elseif ($desktopInfo.PSObject.Properties["name"]) { $openTarget = [string]$desktopInfo.name }
+            if ($desktopInfo.PSObject.Properties["currentFilePath"] -and $desktopInfo.currentFilePath) { $openTarget = [string]$desktopInfo.currentFilePath }
+            elseif ($desktopInfo.PSObject.Properties["reportDir"] -and $desktopInfo.reportDir) { $openTarget = [string]$desktopInfo.reportDir }
+            elseif ($desktopInfo.PSObject.Properties["reportPath"] -and $desktopInfo.reportPath) { $openTarget = [string]$desktopInfo.reportPath }
+            elseif ($desktopInfo.PSObject.Properties["path"] -and $desktopInfo.path) { $openTarget = [string]$desktopInfo.path }
+            elseif ($desktopInfo.PSObject.Properties["file"] -and $desktopInfo.file) { $openTarget = [string]$desktopInfo.file }
+            elseif ($desktopInfo.PSObject.Properties["name"] -and $desktopInfo.name) { $openTarget = [string]$desktopInfo.name }
         }
 
         $server = New-Object Microsoft.AnalysisServices.Tabular.Server

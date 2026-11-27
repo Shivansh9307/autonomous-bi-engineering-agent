@@ -691,6 +691,8 @@ def test_multi_project_paths_hooks_and_port_discovery(tmp_path: Path) -> None:
     )
     assert "MainWindowTitle" in ps_text
     assert "window_title" in ps_text
+    assert "currentFilePath" in ps_text
+    assert "reportDir" in ps_text
     assert "No active Power BI Desktop instance matched ReportName" in ps_text
 
 
