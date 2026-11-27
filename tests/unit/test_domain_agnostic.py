@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from bi_agent.adapters import adomd_adapter, git_adapter, pbir_adapter
+from bi_agent.adapters import adomd_adapter, git_adapter, pbir_adapter, tabular_editor_adapter
 from bi_agent.adapters.adomd_adapter import DaxQueryResult
 from bi_agent.adapters.pbir_adapter import PbirValidateResult
+from bi_agent.adapters.tabular_editor_adapter import BpaResult, TmdlCheckResult
 from bi_agent.config import ToolchainConfig, find_repo_root
 from bi_agent.gates import (
     run_gate_g1,
@@ -696,7 +697,9 @@ def test_multi_project_paths_hooks_and_port_discovery(tmp_path: Path) -> None:
     assert "No active Power BI Desktop instance matched ReportName" in ps_text
 
 
-def test_workflows_manifest_v2_and_runner_includes_g0(tmp_path: Path) -> None:
+def test_workflows_manifest_v2_and_runner_includes_g0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo_root = find_repo_root(Path(__file__).resolve())
     manifest = json.loads(
         (repo_root / "workflows" / "bi_delivery" / "workflow.json").read_text(encoding="utf-8")
@@ -705,6 +708,22 @@ def test_workflows_manifest_v2_and_runner_includes_g0(tmp_path: Path) -> None:
     assert props["project_dir"]["default"] == ""
     assert "raw_data_dir" in props
     assert "offline" in props
+
+    monkeypatch.setattr(
+        tabular_editor_adapter,
+        "check_tmdl_load",
+        lambda *_a, **_kw: TmdlCheckResult(ok=True, exit_code=0, table_count=8),
+    )
+    monkeypatch.setattr(
+        tabular_editor_adapter,
+        "run_bpa",
+        lambda *_a, **_kw: BpaResult(ok=True, exit_code=0, error_count=0, warning_count=0),
+    )
+    monkeypatch.setattr(
+        pbir_adapter,
+        "validate_report",
+        lambda *_a, **_kw: PbirValidateResult(ok=True, exit_code=0),
+    )
 
     for req_id, req_rel in (
         ("REQ-001", "requirements/REQ-001-regional-sales-margin.yaml"),
