@@ -1,0 +1,232 @@
+{
+  "schema_version": "1.0",
+  "domain": "corporate_finance_ap_spend",
+  "seed": 20260303,
+  "row_counts": {
+    "DimDate": {
+      "clean": 1096,
+      "raw": 1096
+    },
+    "DimVendor": {
+      "clean": 41,
+      "raw": 41
+    },
+    "DimCostCenter": {
+      "clean": 17,
+      "raw": 17
+    },
+    "DimGLAccount": {
+      "clean": 13,
+      "raw": 13
+    },
+    "DimApprover": {
+      "clean": 9,
+      "raw": 9
+    },
+    "FactAPInvoices": {
+      "clean": 3500,
+      "raw": 3580
+    },
+    "FactAPBudget": {
+      "clean": 6912,
+      "raw": 6912
+    }
+  },
+  "financial_checksums": {
+    "FactAPInvoices_clean": {
+      "row_count": 3500,
+      "line_amount": "31562978.69",
+      "tax_amount": "1944912.15",
+      "net_amount": "33507890.84"
+    },
+    "FactAPInvoices_exact_duplicates": {
+      "row_count": 45,
+      "line_amount": "330059.09",
+      "tax_amount": "20810.05",
+      "net_amount": "350869.14"
+    },
+    "FactAPInvoices_key_conflicts": {
+      "row_count": 35,
+      "line_amount": "353763.00",
+      "tax_amount": "21022.14",
+      "net_amount": "374785.14"
+    },
+    "FactAPInvoices_raw_expected": {
+      "row_count": 3580,
+      "line_amount": "32246800.78",
+      "tax_amount": "1986744.34",
+      "net_amount": "34233545.12"
+    },
+    "FactAPInvoices_gross_invoices": {
+      "row_count": 3250,
+      "line_amount": "33066656.50",
+      "tax_amount": "2041320.75",
+      "net_amount": "35107977.25"
+    },
+    "FactAPInvoices_credit_memos": {
+      "row_count": 250,
+      "line_amount": "-1503677.81",
+      "tax_amount": "-96408.60",
+      "net_amount": "-1600086.41"
+    },
+    "unknown_minus_one_buckets": {
+      "CostCenterKey_-1": {
+        "row_count": 88,
+        "line_amount": "1039600.00",
+        "tax_amount": "66142.10",
+        "net_amount": "1105742.10"
+      },
+      "ApproverKey_-1": {
+        "row_count": 87,
+        "line_amount": "945214.00",
+        "tax_amount": "60087.47",
+        "net_amount": "1005301.47"
+      },
+      "VendorKey_-1": {
+        "row_count": 88,
+        "line_amount": "668811.08",
+        "tax_amount": "35168.88",
+        "net_amount": "703979.96"
+      },
+      "GLAccountKey_-1": {
+        "row_count": 87,
+        "line_amount": "710596.57",
+        "tax_amount": "37791.15",
+        "net_amount": "748387.72"
+      }
+    },
+    "FactAPBudget_total": "70556530.15"
+  },
+  "defects": {
+    "duplicate_invoice_lines": {
+      "exact_duplicate_rows": 45,
+      "conflicting_duplicate_keys": 35,
+      "total_quarantine_expected": 80,
+      "files": [
+        "FactAPInvoices.csv"
+      ],
+      "samples": [
+        "INV-2025-00004#1",
+        "INV-2026-00035#2",
+        "INV-2024-00067#1",
+        "INV-2025-00100#2",
+        "INV-2024-00005#3",
+        "INV-2026-00042#1",
+        "INV-2026-00078#2",
+        "INV-2025-00114#3"
+      ]
+    },
+    "mixed_date_formats": {
+      "pattern_counts": {
+        "AMBIGUOUS_SLASH_DATE": 1921,
+        "ISO_YYYY_MM_DD": 2497,
+        "SLASH_YYYY_MM_DD": 2489,
+        "TEXT_MON_DATE": 5003,
+        "US_MM_DD_YYYY_SLASH": 2002
+      },
+      "us_mm_dd_day_gt_12_count": 2002,
+      "files": [
+        "FactAPInvoices.csv",
+        "FactAPBudget.csv"
+      ],
+      "samples": [
+        "11/26/2026",
+        "12/29/2025",
+        "12/25/2025",
+        "04/28/2024",
+        "12/15/2024"
+      ]
+    },
+    "stringified_currency_values": {
+      "count": 3478,
+      "fact_ap_invoices_count": 1750,
+      "fact_ap_budget_count": 1728,
+      "files": [
+        "FactAPInvoices.csv",
+        "FactAPBudget.csv"
+      ],
+      "samples": [
+        "$1,449.00",
+        "USD 2,320.50",
+        "$2,303.00",
+        "+$12,827.50",
+        "USD 2,646.00",
+        "+$10,244.50"
+      ]
+    },
+    "negative_credit_memos": {
+      "count": 250,
+      "distinct_credit_invoices": 125,
+      "files": [
+        "FactAPInvoices.csv"
+      ],
+      "samples": [
+        "-11437.68",
+        "(20,261.34)",
+        "($1,909.22)",
+        "(10,607.95)",
+        "($15,344.18)",
+        "-2013.66"
+      ]
+    },
+    "whitespace_casing_drift": {
+      "count": 998,
+      "fact_cell_count": 978,
+      "dimension_cell_count": 20,
+      "files": [
+        "FactAPInvoices.csv",
+        "DimVendor.csv",
+        "DimCostCenter.csv",
+        "DimGLAccount.csv",
+        "DimApprover.csv"
+      ]
+    },
+    "null_or_orphan_foreign_keys": {
+      "count": 350,
+      "null_sentinel_count": 175,
+      "orphan_id_count": 175,
+      "files": [
+        "FactAPInvoices.csv"
+      ],
+      "samples": [
+        "VendorKey=<BLANK>",
+        "CostCenterKey=9999",
+        "GLAccountKey=NULL",
+        "ApproverKey=8888",
+        "VendorKey=TBD",
+        "CostCenterKey=9999"
+      ]
+    },
+    "mixed_entity_grain": {
+      "count": 1250,
+      "repeated_header_column": "InvoiceHeaderTotal",
+      "monthly_budget_rows": 6912,
+      "files": [
+        "FactAPInvoices.csv",
+        "FactAPBudget.csv"
+      ]
+    },
+    "inconsistent_financial_representation": {
+      "count": 2917,
+      "currency_and_accounting_parens_count": 1750,
+      "percentage_rate_strings_count": 1167,
+      "files": [
+        "FactAPInvoices.csv",
+        "FactAPBudget.csv"
+      ],
+      "samples": [
+        "$1,449.00",
+        "USD 2,320.50",
+        "$2,303.00",
+        "+$12,827.50",
+        "USD 2,646.00",
+        "+$10,244.50",
+        "1.00%",
+        "1.50%",
+        "2.00%",
+        "2.00%",
+        "2.50%"
+      ]
+    }
+  }
+}

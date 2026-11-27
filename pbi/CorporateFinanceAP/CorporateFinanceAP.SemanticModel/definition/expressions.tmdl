@@ -1,0 +1,3 @@
+expression DataFolder = "C:\\Users\\Shivansh\\Projects\\Antigravity\\test_neon\\data\\finance_ap\\staged" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: b58728e5-ba6e-4ccc-a8ef-e0986f1c4f9a
+

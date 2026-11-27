@@ -1,0 +1,18 @@
+CostCenterKey,CostCenterCode,CostCenterName,BusinessUnit,Department,EntityCode
+-1,UNK,Unknown Cost Center,Unknown,Unknown,UNK
+1,CC-101,NA Cloud Platform,North America,Engineering,US01
+2,CC-102,NA Commercial Growth,North America,Commercial,US01
+3,CC-103,NA Controllership,North America,Finance & Legal,US02
+4,CC-104,NA Workplace Ops,North America,Operations,CA01
+5,CC-201,EMEA Core Engineering,Europe,Engineering,UK01
+6,CC-202,EMEA Enterprise Sales,Europe,Commercial,DE01
+7,CC-203,EMEA Statutory Finance,Europe,Finance & Legal,UK01
+8,CC-204,EMEA Logistics Hub,Europe,Operations,NL01
+9,CC-301,APAC Digital Infra,APAC,Engineering,SG01
+10,CC-302,APAC Field Revenue,APAC,Commercial,JP01
+11,CC-303,APAC Regional Treasury,APAC,Finance & Legal,SG01
+12,CC-304,APAC Fulfillment Ops,APAC,Operations,AU01
+13,CC-401,Global Security & SRE,Shared Services,Engineering,US01
+14,CC-402,Global Procurement,Shared Services,Operations,US01
+15,CC-403,Global Tax & Audit,Shared Services,Finance & Legal,UK01
+16,CC-404,Global Brand & Events,Shared Services,Commercial,US01

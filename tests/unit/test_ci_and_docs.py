@@ -56,6 +56,8 @@ def test_github_actions_ci_workflow_is_valid() -> None:
         "pytest tests/fault_injection",
         "REQ-001-regional-sales-margin.yaml --offline",
         "REQ-002-customer-discount-analytics.yaml --offline",
+        "bi-agent verify-data requirements/REQ-003-corporate-ap-spend.yaml",
+        "REQ-003-corporate-ap-spend.yaml --offline",
     ):
         assert expected_cmd in raw_text
 

@@ -1,0 +1,6 @@
+/// Static RLS isolating APAC Business Unit.
+role BU_APAC
+	modelPermission: read
+
+	tablePermission DimCostCenter = 'DimCostCenter'[BusinessUnit] = "APAC"
+

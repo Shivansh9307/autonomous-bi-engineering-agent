@@ -1,0 +1,78 @@
+/// Supplier master dimension including -1 Unknown Vendor.
+table DimVendor
+	lineageTag: 22172c7d-ac67-4730-a30d-ddbe5e9672e6
+
+	column VendorKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: ff21016d-b6b0-4ebd-958e-9f7825a801cb
+		summarizeBy: none
+		sourceColumn: VendorKey
+
+	column VendorCode
+		dataType: string
+		lineageTag: d5916f51-3475-4a92-9c5d-6b451c459c72
+		summarizeBy: none
+		sourceColumn: VendorCode
+
+	column VendorName
+		dataType: string
+		lineageTag: 9ebb0a84-cb66-473c-97ab-44c73ef10ca1
+		summarizeBy: none
+		sourceColumn: VendorName
+
+	column VendorCategory
+		dataType: string
+		lineageTag: ca28e188-1e68-450d-91f9-65aec1379179
+		summarizeBy: none
+		sourceColumn: VendorCategory
+
+	column PaymentTerms
+		dataType: string
+		lineageTag: c5d78455-0bca-41ad-9f13-47fb617c45a2
+		summarizeBy: none
+		sourceColumn: PaymentTerms
+
+	column Country
+		dataType: string
+		lineageTag: b5922ecf-98ea-4e4a-ad6d-a93e9ee960ad
+		dataCategory: Country
+		summarizeBy: none
+		sourceColumn: Country
+
+	column VendorTier
+		dataType: string
+		lineageTag: 771237bd-cddd-44c6-abfe-f0f08f6c319a
+		summarizeBy: none
+		sourceColumn: VendorTier
+
+	hierarchy 'Vendor Hierarchy'
+		lineageTag: db329c76-5bd1-4601-8297-1186f1bf98db
+
+		level VendorCategory
+			lineageTag: 3079d11f-9491-4146-9138-13faa629a1fa
+			column: VendorCategory
+
+		level VendorName
+			lineageTag: 5753cff4-c0fd-468b-b789-af1b78c082bd
+			column: VendorName
+
+	partition DimVendor = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimVendor.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"VendorKey", Int64.Type},
+				        {"VendorCode", type text},
+				        {"VendorName", type text},
+				        {"VendorCategory", type text},
+				        {"PaymentTerms", type text},
+				        {"Country", type text},
+				        {"VendorTier", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

@@ -1,0 +1,14 @@
+GLAccountKey,GLAccountCode,GLAccountName,ExpenseGroup,AccountType
+-1,999999,Unknown GL Account,Unknown,Expense
+1,510100,cloud hosting & compute,Cloud & IT,Expense
+2,510200,Enterprise SaaS Subscriptions,Cloud & IT,Expense
+3,510300,IT Hardware & Networking,Cloud & IT,Expense
+4,520100,EXTERNAL LEGAL COUNSEL,Professional Services,Expense
+5,520200,Audit & Tax Advisory,Professional Services,Expense
+6,520300,Management Consulting,Professional Services,Expense
+7,530100,Office  Leases & Utilities,Facilities & Ops,Expense
+8,530200,Freight & Warehousing,Facilities & Ops,Expense
+9,530300,Equipment Maintenance,Facilities & Ops,Expense
+10,540100,  Demand Generation Media ,Marketing & Travel,Expense
+11,540200,Trade Shows & Conferences,Marketing & Travel,Expense
+12,540300,Corporate Travel & Lodging,Marketing & Travel,Expense

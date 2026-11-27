@@ -1,0 +1,61 @@
+/// Monthly AP operating expense budget by CostCenter and GLAccount.
+table FactAPBudget
+	lineageTag: e35090de-6e78-43e1-be2d-3f3a4319d867
+
+	column PostingDate
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		isAvailableInMdx: false
+		lineageTag: 20dc518b-267a-45d7-a8c7-7c73c348156c
+		summarizeBy: none
+		sourceColumn: PostingDate
+
+	column PostingDateKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 7726fbe4-aacf-431d-940d-8218d84a0072
+		summarizeBy: none
+		sourceColumn: PostingDateKey
+
+	column CostCenterKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 5d9551f2-eaea-482e-8ed0-8dcf782fa6f5
+		summarizeBy: none
+		sourceColumn: CostCenterKey
+
+	column GLAccountKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 127bedad-b471-4676-b1b3-99ffabfede94
+		summarizeBy: none
+		sourceColumn: GLAccountKey
+
+	column BudgetAmount
+		dataType: decimal
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: b54c0c96-de67-47f6-b996-c67b105c9ec2
+		summarizeBy: none
+		sourceColumn: BudgetAmount
+
+	partition FactAPBudget = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\FactAPBudget.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"PostingDate", type date},
+				        {"PostingDateKey", Int64.Type},
+				        {"CostCenterKey", Int64.Type},
+				        {"GLAccountKey", Int64.Type},
+				        {"BudgetAmount", Currency.Type}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

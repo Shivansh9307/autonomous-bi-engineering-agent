@@ -1,0 +1,176 @@
+{
+  "name": "VendorLedger",
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "queryRef": "DimVendor.VendorName",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DimVendor"
+                    }
+                  },
+                  "Property": "VendorName"
+                }
+              },
+              "nativeQueryRef": "VendorName"
+            },
+            {
+              "queryRef": "DimVendor.VendorCategory",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DimVendor"
+                    }
+                  },
+                  "Property": "VendorCategory"
+                }
+              },
+              "nativeQueryRef": "VendorCategory"
+            },
+            {
+              "queryRef": "DimVendor.PaymentTerms",
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DimVendor"
+                    }
+                  },
+                  "Property": "PaymentTerms"
+                }
+              },
+              "nativeQueryRef": "PaymentTerms"
+            },
+            {
+              "queryRef": "_Measures.Invoice Count",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Invoice Count"
+                }
+              },
+              "nativeQueryRef": "Invoice Count"
+            },
+            {
+              "queryRef": "_Measures.Gross Invoice Spend",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Gross Invoice Spend"
+                }
+              },
+              "nativeQueryRef": "Gross Invoice Spend"
+            },
+            {
+              "queryRef": "_Measures.Credit Memo Amount",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Credit Memo Amount"
+                }
+              },
+              "nativeQueryRef": "Credit Memo Amount"
+            },
+            {
+              "queryRef": "_Measures.Net AP Spend",
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Net AP Spend"
+                }
+              },
+              "nativeQueryRef": "Net AP Spend"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "_Measures"
+                  }
+                },
+                "Property": "Invoice Count"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "objects": {},
+    "drillFilterOtherVisuals": true,
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Vendor Spend & Credit Ledger'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "subTitle": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "position": {
+    "x": 20,
+    "y": 485,
+    "width": 1240,
+    "height": 215,
+    "z": 0,
+    "tabOrder": 0
+  },
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.13.0/schema.json"
+}

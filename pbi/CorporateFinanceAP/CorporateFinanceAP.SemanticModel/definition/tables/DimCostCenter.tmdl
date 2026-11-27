@@ -1,0 +1,74 @@
+/// Organizational cost center and business unit dimension.
+table DimCostCenter
+	lineageTag: ec98d7d2-fbc9-4d71-8807-cf7585c87b84
+
+	column CostCenterKey
+		dataType: int64
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 434ed09b-1059-4418-9af2-b25c89f780c4
+		summarizeBy: none
+		sourceColumn: CostCenterKey
+
+	column CostCenterCode
+		dataType: string
+		lineageTag: c32aa58e-6ff0-4dda-999e-61ca76a9b1a3
+		summarizeBy: none
+		sourceColumn: CostCenterCode
+
+	column CostCenterName
+		dataType: string
+		lineageTag: 571d97f8-0f21-441c-9a20-71ea6eb47089
+		summarizeBy: none
+		sourceColumn: CostCenterName
+
+	column BusinessUnit
+		dataType: string
+		lineageTag: 66241e77-6aa6-4eae-9df1-1c4eef00420b
+		summarizeBy: none
+		sourceColumn: BusinessUnit
+
+	column Department
+		dataType: string
+		lineageTag: 4853f942-1e01-4914-8cd5-a0a7b6e2bb81
+		summarizeBy: none
+		sourceColumn: Department
+
+	column EntityCode
+		dataType: string
+		lineageTag: 1f612242-7147-4eb4-93cf-f5067fe8845d
+		summarizeBy: none
+		sourceColumn: EntityCode
+
+	hierarchy 'Organization Hierarchy'
+		lineageTag: 4889b4a1-380f-4e34-9e5a-d3cebdb10ed5
+
+		level BusinessUnit
+			lineageTag: 7a3971df-8eaa-44cf-abb8-6ab24cbfba71
+			column: BusinessUnit
+
+		level Department
+			lineageTag: 273b5f72-d221-4865-8f8f-9fecd357c51a
+			column: Department
+
+		level CostCenterName
+			lineageTag: 8bdf1c57-a036-4ebb-9bed-b028d9b865d5
+			column: CostCenterName
+
+	partition DimCostCenter = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\DimCostCenter.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    #"Promoted Headers" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {
+				        {"CostCenterKey", Int64.Type},
+				        {"CostCenterCode", type text},
+				        {"CostCenterName", type text},
+				        {"BusinessUnit", type text},
+				        {"Department", type text},
+				        {"EntityCode", type text}
+				    }, "en-US")
+				in
+				    #"Changed Type"
+

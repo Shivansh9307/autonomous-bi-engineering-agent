@@ -1,0 +1,194 @@
+/// Dedicated display table for corporate AP spend KPI measures.
+table _Measures
+	lineageTag: 66042638-a4b0-4edf-96fd-3f0e64b7419c
+
+	/// Sum of NetAmount across standard Invoice documents before Credit Memo offsets.
+	measure 'Gross Invoice Spend' =
+			VAR _Net = [Net AP Spend]
+			VAR _Gross = CALCULATE ( SUM ( 'FactAPInvoices'[NetAmount] ), 'FactAPInvoices'[DocumentType] = "Invoice" )
+			RETURN
+			    IF ( NOT ISBLANK ( _Net ), COALESCE ( _Gross, 0 ) )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 469acc19-90af-4679-a212-253e9b0e631a
+
+	/// Signed sum of negative NetAmount across Credit Memo lines.
+	measure 'Credit Memo Amount' =
+			VAR _Net = [Net AP Spend]
+			VAR _Credits = CALCULATE ( SUM ( 'FactAPInvoices'[NetAmount] ), 'FactAPInvoices'[DocumentType] = "Credit Memo" )
+			RETURN
+			    IF ( NOT ISBLANK ( _Net ), COALESCE ( _Credits, 0 ) )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: cd01cfa0-b58f-44a3-872a-be21677c1111
+
+	/// Total net accounts payable spend combining Invoices and Credit Memos.
+	measure 'Net AP Spend' = SUM ( 'FactAPInvoices'[NetAmount] )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 119a1730-b181-44fd-b44c-b5dc4bdd47ec
+
+	/// Total net pre-tax AP line amount across Invoices and Credit Memos.
+	measure 'Pre-Tax Spend' = SUM ( 'FactAPInvoices'[LineAmount] )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: df9e963e-4e8f-46fe-8c63-7008bb507243
+
+	/// Total net tax amount across AP invoice and credit memo lines.
+	measure 'Tax Spend' = SUM ( 'FactAPInvoices'[TaxAmount] )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 9e2bbe13-bcf0-4562-a36c-2d5a101058bb
+
+	/// Distinct count of AP InvoiceID documents in current filter context.
+	measure 'Invoice Count' = DISTINCTCOUNT ( 'FactAPInvoices'[InvoiceID] )
+		formatString: #,##0
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 5c97692f-468e-4f7c-9a27-f336265e79da
+
+	/// Net AP Spend divided safely by distinct Invoice Count.
+	measure 'Average Invoice Value' =
+			VAR _Invoices = [Invoice Count]
+			RETURN
+			    DIVIDE ( [Net AP Spend], _Invoices )
+		formatString: $#,##0.00
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 2076c109-56ff-4e63-a1a2-5662db584f38
+
+	/// Absolute Credit Memo Amount expressed as a share of Gross Invoice Spend.
+	measure 'Credit Memo Rate %' = DIVIDE ( ABS ( [Credit Memo Amount] ), [Gross Invoice Spend] )
+		formatString: 0.00%
+		displayFolder: 01 AP Spend & Credits
+		lineageTag: 07e0b4d1-0801-4f86-b82f-97192adf8252
+
+	/// Prior-year Net AP Spend shifted via SAMEPERIODLASTYEAR on DimDate[Date].
+	measure 'Net Spend PY' = CALCULATE ( [Net AP Spend], SAMEPERIODLASTYEAR ( 'DimDate'[Date] ) )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: 19c9d2f4-63f7-4138-bd3c-8bb8675045eb
+
+	/// Year-over-year dollar change in Net AP Spend versus Net Spend PY.
+	measure 'Net Spend YoY' =
+			VAR _Current = [Net AP Spend]
+			VAR _Prior = [Net Spend PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _Current ) && NOT ISBLANK ( _Prior ), _Current - _Prior )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: c59c7bc0-583b-44b3-8239-cf62967a654a
+
+	/// Year-over-year percentage change in Net AP Spend over prior year.
+	measure 'Net Spend YoY %' =
+			VAR _Prior = [Net Spend PY]
+			RETURN
+			    DIVIDE ( [Net Spend YoY], _Prior )
+		formatString: 0.00%
+		displayFolder: 02 Time Intelligence
+		lineageTag: 3d6b10bd-98aa-4028-98c7-4beacb5a7422
+
+	/// Fiscal/calendar year-to-date cumulative Net AP Spend.
+	measure 'Net Spend YTD' =
+			VAR _LastActualDateKey = CALCULATE ( MAX ( 'FactAPInvoices'[PostingDateKey] ), REMOVEFILTERS () )
+			VAR _FirstSelectedDateKey = MIN ( 'DimDate'[DateKey] )
+			RETURN
+			    IF (
+			        NOT ISBLANK ( _LastActualDateKey ) && _FirstSelectedDateKey <= _LastActualDateKey,
+			        CALCULATE ( [Net AP Spend], DATESYTD ( 'DimDate'[Date] ) )
+			    )
+		formatString: $#,##0.00
+		displayFolder: 02 Time Intelligence
+		lineageTag: a62e45e7-3002-42fa-8414-38d14c141257
+
+	/// Monthly OPEX budget allocation from FactAPBudget at CostCenter x GLAccount grain.
+	measure 'Budget Spend' =
+			VAR _InvalidGrain = ISCROSSFILTERED ( 'DimVendor' ) || ISCROSSFILTERED ( 'DimApprover' )
+			RETURN
+			    IF ( NOT _InvalidGrain, SUM ( 'FactAPBudget'[BudgetAmount] ) )
+		formatString: $#,##0.00
+		displayFolder: 03 Budget & Variance
+		lineageTag: f593ca2e-9059-460f-ba54-98993f4b320c
+
+	/// Remaining budget headroom (Budget Spend minus Net AP Spend) when both exist.
+	measure 'Budget Variance' =
+			VAR _Actual = [Net AP Spend]
+			VAR _Budget = [Budget Spend]
+			RETURN
+			    IF ( NOT ISBLANK ( _Actual ) && NOT ISBLANK ( _Budget ), _Budget - _Actual )
+		formatString: $#,##0.00
+		displayFolder: 03 Budget & Variance
+		lineageTag: 9545ffeb-7689-4544-8e9b-8fba1f6e7d3a
+
+	/// Budget Variance divided safely by Budget Spend.
+	measure 'Budget Variance %' = DIVIDE ( [Budget Variance], [Budget Spend] )
+		formatString: 0.00%
+		displayFolder: 03 Budget & Variance
+		lineageTag: f0ad5a51-0d64-4a7a-825d-eeaa11a51084
+
+	/// Attainment classification returning Under Budget, Over Budget, No Actuals, or No Budget.
+	measure 'Budget Utilization Status' =
+			VAR _Actual = [Net AP Spend]
+			VAR _Budget = [Budget Spend]
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        ISBLANK ( _Budget ) || _Budget = 0, "No Budget",
+			        ISBLANK ( _Actual ), "No Actuals",
+			        _Actual <= _Budget, "Under Budget",
+			        "Over Budget"
+			    )
+		formatString: @
+		displayFolder: 03 Budget & Variance
+		lineageTag: dd7aa270-1bfe-44ef-b8ff-c3a99accdd31
+
+	/// Share of Paid invoice lines settled on or before vendor payment terms due date.
+	measure 'On-Time Payment %' =
+			VAR _PaidLines = CALCULATE ( COUNTROWS ( 'FactAPInvoices' ), 'FactAPInvoices'[PaymentStatus] = "Paid" )
+			VAR _OnTimeLines = CALCULATE ( SUM ( 'FactAPInvoices'[IsPaidOnTime] ), 'FactAPInvoices'[PaymentStatus] = "Paid" )
+			RETURN
+			    DIVIDE ( _OnTimeLines, _PaidLines )
+		formatString: 0.00%
+		displayFolder: 04 Payment & Controls
+		lineageTag: 6343431e-fba9-420d-9847-ec753a18f60b
+
+	/// Net AP Spend across invoice lines currently in Overdue payment status.
+	measure 'Overdue Exposure' = CALCULATE ( SUM ( 'FactAPInvoices'[NetAmount] ), 'FactAPInvoices'[PaymentStatus] = "Overdue" )
+		formatString: $#,##0.00
+		displayFolder: 04 Payment & Controls
+		lineageTag: e6c2150a-a5b0-4c69-a6ce-62ddfb9a95a6
+
+	/// Percentage of AP invoice lines verified via full 3-Way Matched controls.
+	measure 'Three-Way Match %' =
+			VAR _TotalLines = COUNTROWS ( 'FactAPInvoices' )
+			VAR _MatchedLines = CALCULATE ( COUNTROWS ( 'FactAPInvoices' ), 'FactAPInvoices'[MatchStatus] = "3-Way Matched" )
+			RETURN
+			    DIVIDE ( _MatchedLines, _TotalLines )
+		formatString: 0.00%
+		displayFolder: 04 Payment & Controls
+		lineageTag: 27b261e3-b2d7-4f2e-a256-c32933413fd5
+
+	/// Share of AP invoice lines flagged with MatchStatus Exception controls.
+	measure 'Exception Rate %' =
+			VAR _TotalLines = COUNTROWS ( 'FactAPInvoices' )
+			VAR _ExceptionLines = CALCULATE ( COUNTROWS ( 'FactAPInvoices' ), 'FactAPInvoices'[MatchStatus] = "Exception" )
+			RETURN
+			    DIVIDE ( _ExceptionLines, _TotalLines )
+		formatString: 0.00%
+		displayFolder: 04 Payment & Controls
+		lineageTag: 39a6ef23-3425-4796-8561-f2d525c7a4b4
+
+	column _Placeholder
+		dataType: string
+		isHidden
+		isAvailableInMdx: false
+		lineageTag: 914fd9a5-d685-4174-bad1-da2b971e96f6
+		summarizeBy: none
+		sourceColumn: _Placeholder
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Source = #table(type table [_Placeholder = nullable text], {})
+				in
+				    Source
+

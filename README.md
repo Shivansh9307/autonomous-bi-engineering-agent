@@ -123,6 +123,14 @@ Read the complete 1-page architect blueprint: **[Microsoft Fabric Productionisat
 
 </details>
 
+### Multi-Domain Proof (`REQ-003`: Messy Corporate Finance / AP Spend)
+
+To prove the v2 verification engine is domain-agnostic, [`requirements/REQ-003-corporate-ap-spend.yaml`](requirements/REQ-003-corporate-ap-spend.yaml) and [`pbi/CorporateFinanceAP`](pbi/CorporateFinanceAP/CorporateFinanceAP.pbip) onboard a separate deterministic **Corporate Finance / Accounts Payable** star schema built from intentionally corrupted ERP extracts with **zero edits to `src/bi_agent/` or `workflows/bi_delivery/`**:
+
+- **Gate `G0` Messy Data Remediation:** Profiles `7` raw CSVs (`27` defect findings across all `8` defect classes: duplicate rows/keys, mixed `MM/DD/YYYY` + ISO dates, stringified currency & `"2.00%"` discount rates, negative credit memos, casing/whitespace drift, null/orphan FKs mapped to `-1 Unknown`, and repeated invoice header grain) and reconciles staged outputs + `80`-row quarantine (`$725,654.28` net) to `0.00` Decimal diff.
+- **Model & Report Scope:** `8` tables, `8` `1:*` `Single` relationships, `20` KPIs (`$33,507,890.84` Net AP Spend vs. `$70,556,530.15` Budget across `3,500` staged invoice lines / `1,500` distinct invoices), `4` fail-closed RLS roles (`BU_NorthAmerica`, `BU_Europe`, `BU_APAC`, `Dynamic_Approver`), and `3` PBIR pages (`24` visuals via `pbir` CLI).
+- **Live `G0`–`G7` Evidence:** `PASS` across all `8` gates (`0` skips) — BPA `0` errors / `0` warnings, VertiPaq `11,588` rows (`780,135` bytes), `67` live DAX assertions reconciled within `±0.01` (`Cold avg=16.0ms`, `Warm avg=13.7ms`), `8` RLS impersonation scenarios with zero cross-fact leakage, and `3` live Power BI Desktop PNG renders.
+
 ---
 
 ## Deep Documentation
@@ -134,4 +142,4 @@ Read the complete 1-page architect blueprint: **[Microsoft Fabric Productionisat
 | [End-to-End Delivery Walkthrough](docs/WALKTHROUGH.md) | Technical Reviewers | Phase-by-phase build history, empirical live `REQ-002` evidence, and fault-injection design |
 | [Architecture Decision Records](docs/adr/README.md) | Engineering Leads | `ADR-0001` through `ADR-0007` covering Gate `G0`, declarative contracts, PBIR CLI exclusivity, and RLS hardening |
 | [Master Plan](docs/PLAN.md) | Maintainers | Original 7-gate architecture and 3-window delivery cadence |
-| [Phase State Checkpoint](docs/PHASE_STATE.md) | Maintainers & Agents | Concise live status checkpoint (`<= 60` lines) across Phases 1–9 |
+| [Phase State Checkpoint](docs/PHASE_STATE.md) | Maintainers & Agents | Concise live status checkpoint (`<= 60` lines) across Phases 1–11 |
